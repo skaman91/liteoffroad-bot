@@ -1,0 +1,15 @@
+{
+  "name": "bot_1.1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mongoose": "^8.4.3",
+    "node-telegram-bot-api": "^0.64.0"
+  }
+}
