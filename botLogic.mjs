@@ -31,9 +31,10 @@ export default class BotLogic {
   async onMessage (msg) {
     try {
       if (msg.text) {
+        console.log(msg)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
-        if (/покажи точки$/i.test(msg.text)) {
+        if (/точки$/i.test(msg.text)) {
           // await this.bot.sendMessage(chatId, `Здоров ${user}! Вот список актуальных точек:
           //
           // Точка №1 (северная)
@@ -105,10 +106,16 @@ export default class BotLogic {
           const comment666 = ''
           const first666 = six666.split(',')[0].trim()
           const second666 = six666.split(',')[1].trim()
-          await this.bot.sendMessage(chatId, `Точка №6: ${first666}, ${second666} ${comment666} https://yandex.ru/maps/?ll=${second666}%2C${first666}&mode=search&sll=${first666}%${second666}&text=${first666}%2C${second666}&z=15`)
+          await this.bot.sendMessage(chatId, `Кастомная Точка №666: ${first666}, ${second666} ${comment666} https://yandex.ru/maps/?ll=${second666}%2C${first666}&mode=search&sll=${first666}%${second666}&text=${first666}%2C${second666}&z=15`)
+
+          // Общая карта всех точек
+          await this.bot.sendMessage(chatId, 'Ссылка на карту со всеми точками https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09')
+
         }
 
-        await this.bot.sendMessage(chatId, 'Ссылка на карту со всеми точками https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09')
+        if (/карта$/i.test(msg.text)) {
+          await this.bot.sendMessage(chatId, 'Ссылка на карту со всеми точками https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09')
+        }
         // const Point = mongoose.model('Points', {})
         // const point = {
         //   mame: msg.from.first_name,
@@ -117,7 +124,7 @@ export default class BotLogic {
         // new Point(point).save()
       }
     } catch (e) {
-      console.log('Faled onMessage', e.message)
+      console.log('Failed onMessage', e.message)
     }
   }
 
