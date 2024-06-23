@@ -53,14 +53,17 @@ export default class BotLogic {
           if (oneS) {
             const name = oneS.point
             const rating = oneS.rating
-            const comment1S = oneS.comment
+            const comment = oneS.comment
             const coordinates = oneS.coordinates
-            const first1S = coordinates.split(',')[0].trim()
-            const second1S = coordinates.split(',')[1].trim()
+            const first = coordinates.split(',')[0].trim()
+            const second = coordinates.split(',')[1].trim()
             const photo = oneS.photo
-            const text1S = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment1S}\n<a href="https://yandex.ru/maps/?ll=${second1S}%2C${first1S}&mode=search&sll=${first1S}%${second1S}&text=${first1S}%2C${second1S}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = oneS.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = oneS.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text1S, { parse_mode: 'HTML', disable_web_page_preview: true })
+            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
 
           // 1 южная
@@ -92,7 +95,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = secondS.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = secondS.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = secondS.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
@@ -107,7 +113,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = secondY.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = secondY.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = secondY.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
@@ -122,7 +131,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = five.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = five.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = five.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
@@ -137,7 +149,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = six.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = six.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = six.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
@@ -152,7 +167,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = seven.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = seven.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = seven.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
@@ -167,7 +185,10 @@ export default class BotLogic {
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
             const photo = eight.photo
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n--------------------------------------`
+            const install = eight.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = eight.installed
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
