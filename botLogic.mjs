@@ -262,12 +262,8 @@ export default class BotLogic {
         if (point && coordinates && step === 3) {
           if (!comment) {
             comment = msg.text
-            console.log('username', username)
-            console.log('point', point)
-            console.log('coordinates', coordinates)
-            console.log('comment', comment)
             step = 4
-            await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
+            await this.bot.sendMessage(chatId, 'Отправь одну фотографию установки точки')
           }
         }
 
@@ -281,7 +277,7 @@ export default class BotLogic {
             const rating = 0
             const takePoints = 0
             const installPoints = 0
-            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек ${takePoints}, `
+            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML'})
           }
         }
