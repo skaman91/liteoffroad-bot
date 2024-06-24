@@ -23,6 +23,16 @@ const commands = [
   {
     command: "install_point",
     description: "Установил точку"
+  },
+
+  {
+    command: "profile",
+    description: "Посмотреть свой профиль"
+  },
+
+  {
+    command: "resulst",
+    description: "Общие результаты игры"
   }
 ]
 

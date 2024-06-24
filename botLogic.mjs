@@ -270,6 +270,14 @@ export default class BotLogic {
             await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
           }
         }
+
+        if (/\/rofile/i.test(msg.text)) {
+          await this.bot.sendMessage(chatId, 'Раздел в разработке')
+        }
+
+        if (/\/results/i.test(msg.text)) {
+          await this.bot.sendMessage(chatId, 'Раздел в разработке')
+        }
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
