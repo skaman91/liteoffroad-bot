@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api'
 import mongoose, { Mongoose } from 'mongoose'
 import { DB } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
+import { commands } from './const.js'
 
 const url = 'mongodb+srv://skaman93:kadha7-Qyrrit-hisfer@cluster0.qn6jtl9.mongodb.net/?'
 const client = new MongoClient(url)
@@ -31,6 +32,7 @@ export default class BotLogic {
     if (!this.bot) {
       this.bot = new TelegramBot(this.apiToken, { polling: true })
       console.log('bot', this.bot)
+      this.bot.setMyCommands(commands)
       this.bot.on('message', msg => this.onMessage(msg))
       this.bot.on('photo', msg => this.onFile(msg))
     }
@@ -42,7 +44,7 @@ export default class BotLogic {
         console.log(msg)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
-        if (/^точки$/i.test(msg.text)) {
+        if (/^(точки|\/points)$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список актуальных точек:</b>`, {
             parse_mode: 'HTML',
             disable_web_page_preview: true
@@ -209,15 +211,15 @@ export default class BotLogic {
 
         }
 
-        if (/карта$/i.test(msg.text)) {
+        if (/карта|\/map$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, `<a href="https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09">Ссылка на карту со всеми точками</a>`, {
             parse_mode: 'HTML',
             disable_web_page_preview: true
           })
         }
 
-        if (/(взял|установил) точку/i.test(msg.text)) {
-          install = /установил точку/i.test(msg.text)
+        if (/((взял|установил) точку)|(\/take|\/install_point)/i.test(msg.text)) {
+          install = /установил точку|\/install_point/i.test(msg.text)
           if (!install) {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😂')
           } else {
