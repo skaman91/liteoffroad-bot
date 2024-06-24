@@ -137,15 +137,14 @@ export default class BotLogic {
         }
 
         if (/^\/profile$/i.test(msg.text)) {
-          await this.bot.sendMessage(chatId, 'Раздел в разработке')
           const id = msg.from.id
           const profile = await userCollection.findOne({ id: id} )
           if (profile) {
             const username = msg.from.username
             const firstName = msg.from.first_name
-            const rating = 0
-            const takePoints = 0
-            const installPoints = 0
+            const rating = profile.rating
+            const takePoints = profile.takePoints
+            const installPoints = profile.installPoints
             const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML'})
           }
@@ -182,38 +181,50 @@ export default class BotLogic {
   }
 
   async onFile (msg) {
-    console.log('msg', msg)
-    const file = msg.photo[0].file_id
-    const chatId = msg.from.id
-    if (step === 4 && file) {
-      await this.bot.sendMessage(chatId, 'Отлично, этого достаточно. За установку этой точки, тебе начислен один балл))')
-      rating = 1
-      step = 5
-    } else {
-      return
+    try {
+      const file = msg.photo[0].file_id
+      const chatId = msg.from.id
+      if (step === 4 && file) {
+        await this.bot.sendMessage(chatId, 'Отлично, этого достаточно. За установку этой точки, тебе начислен один балл))')
+        rating = 1
+        step = 5
+      } else {
+        return
+      }
+
+      const text = install
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
+      await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
+      await this.bot.sendPhoto(chatId, file)
+      const pointField = await collection.findOne({ point: point })
+      if (pointField) {
+        await collection.updateOne({point: point}, {$set: {
+            coordinates: coordinates,
+            comment: comment,
+            install: install,
+            installed: msg.from.username,
+            photo: file,
+          }})
+        await userCollection.updateOne({username: msg.from.username},{$inc: {
+            rating: rating,
+            installPoints: install ? 1 : 0,
+            takePoints: !install ? 1 : 0
+          }})
+      } else {
+        await this.bot.sendMessage(chatId, 'Такая точка не найдена')
+      }
+
+
+      step = 0
+      point = ''
+      username = ''
+      coordinates = ''
+      comment = ''
+      rating = 0
+    } catch (e) {
+      console.log('Failed onFile', e.message)
     }
-
-    const text = install
-      ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
-      : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
-    await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
-    await this.bot.sendPhoto(chatId, file)
-    await collection.updateOne({point: point}, {$set: {
-        coordinates: coordinates,
-        comment: comment,
-        rating: rating,
-        install: install,
-        installed: msg.from.username,
-        photo: file
-      }})
-
-    await collection.insertOne({})
-    step = 0
-    point = ''
-    username = ''
-    coordinates = ''
-    comment = ''
-    rating = 0
   }
 
   delay (minDelay, maxDelay) {
