@@ -273,10 +273,42 @@ export default class BotLogic {
 
         if (/^\/profile$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
+          const id = msg.from.id
+          const profile = await userCollection.findOne({ id: id} )
+          if (profile) {
+            const username = msg.from.username
+            const firstName = msg.from.first_name
+            const rating = 0
+            const takePoints = 0
+            const installPoints = 0
+            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек ${takePoints}, `
+            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML'})
+          }
         }
 
         if (/^\/results$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
+
+        }
+        if (/^\/start$/i.test(msg.text)) {
+          const username = msg.from.username
+          const firstName = msg.from.first_name
+          const id = msg.from.id
+          const rating = 0
+          const takePoints = 0
+          const installPoints = 0
+          const profile = await userCollection.findOne({ id: id} )
+          if (!profile) {
+            await userCollection.insertOne({
+              id: id,
+              firstName: firstName,
+              username: username,
+              rating: rating,
+              takePoints: takePoints,
+              installPoints: installPoints,
+            })
+            await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
+          }
         }
       }
     } catch (e) {

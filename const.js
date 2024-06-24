@@ -2,7 +2,7 @@
 const commands = [
   {
     command: "start",
-    description: "Запуск бота"
+    description: "Запуск бота и регистрация в системе"
   },
 
   {
