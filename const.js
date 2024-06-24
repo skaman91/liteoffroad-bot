@@ -31,7 +31,7 @@ const commands = [
   },
 
   {
-    command: "resulst",
+    command: "results",
     description: "Общие результаты игры"
   }
 ]

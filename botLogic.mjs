@@ -271,11 +271,11 @@ export default class BotLogic {
           }
         }
 
-        if (/\/rofile/i.test(msg.text)) {
+        if (/^\/profile$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
         }
 
-        if (/\/results/i.test(msg.text)) {
+        if (/^\/results$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
         }
       }
