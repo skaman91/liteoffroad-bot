@@ -88,6 +88,11 @@ export default class BotLogic {
         }
 
         if (/((взял|установил) точку)|(\/take|\/install_point)/i.test(msg.text)) {
+          const profile = await userCollection.findOne({ id: msg.from.id } )
+          if (!profile) {
+            await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
+            return
+          }
           install = /установил точку|\/install_point/i.test(msg.text)
           if (!install) {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😂')
@@ -185,16 +190,17 @@ export default class BotLogic {
       const file = msg.photo[0].file_id
       const chatId = msg.from.id
       if (step === 4 && file) {
-        await this.bot.sendMessage(chatId, 'Отлично, этого достаточно. За установку этой точки, тебе начислен один балл))')
+        await this.bot.sendMessage(chatId, 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл')
         rating = 1
         step = 5
       } else {
         return
       }
-
+      const profile = await userCollection.findOne({ id: msg.from.id } )
+      console.log('profile', profile)
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг 100500`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
       await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
       await this.bot.sendPhoto(chatId, file)
       const pointField = await collection.findOne({ point: point })
