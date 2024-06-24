@@ -45,163 +45,32 @@ export default class BotLogic {
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
         if (/^(точки|\/points)$/i.test(msg.text)) {
-          await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список актуальных точек:</b>`, {
-            parse_mode: 'HTML',
-            disable_web_page_preview: true
-          })
+          const cursor = await collection.find({rating: 1})
+          let i = 0
+          const points = []
 
-          // 1 северная
-          const oneS = await collection.findOne({ point: 'Точка 1 северная'} )   // '60.342349, 30.017123'
-          if (oneS) {
-            const name = oneS.point
-            const rating = oneS.rating
-            const comment = oneS.comment
-            const coordinates = oneS.coordinates
+          for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+            i++
+            points.push(data)
+          }
+          await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список актуальных точек:</b>`, { parse_mode: 'HTML' })
+
+          // Точки
+          for (const point of points) {
+            const name = point.point
+            const rating = point.rating
+            const comment = point.comment
+            const coordinates = point.coordinates
             const first = coordinates.split(',')[0].trim()
             const second = coordinates.split(',')[1].trim()
-            const photo = oneS.photo
-            const install = oneS.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = oneS.installed
+            const photo = point.photo
+            const install = point.install ? 'Установлена' : 'Точка взята и еще не установлена'
+            const installed = point.installed
             const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
             const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
             await this.bot.sendPhoto(chatId, photo)
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
           }
-
-          // 1 южная
-          const oneY = await collection.findOne({ point: 'Точка 1 южная'} )   // '60.342349, 30.017123'
-          if (oneY) {
-            const name = oneY.point
-            const rating = oneY.rating
-            const comment = oneY.comment
-            const coordinates = oneY.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = oneY.photo
-            const install = oneY.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = oneY.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-            // await this.bot.sendMessage(chatId, `https://osmand.net/map/?pin=${first1Y},${second1Y}#9/59.8981/30.2619`)
-          }
-
-          // 2 северная
-          const secondS = await collection.findOne({ point: 'Точка 2 северная'})
-          if (secondS) {
-            const name = secondS.point
-            const rating = secondS.rating
-            const comment = secondS.comment
-            const coordinates = secondS.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = secondS.photo
-            const install = secondS.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = secondS.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // 2 южная
-          const secondY = await collection.findOne({ point: 'Точка 2 южная'}) // '59.97657, 30.60245' 'Лайт+'
-          if (secondY) {
-            const name = secondY.point
-            const rating = secondY.rating
-            const comment = secondY.comment
-            const coordinates = secondY.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = secondY.photo
-            const install = secondY.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = secondY.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // точка 5
-          const five = await collection.findOne({ point: 'Точка 5'}) // '59.97657, 30.60245' 'Лайт+'
-          if (five) {
-            const name = five.point
-            const rating = five.rating
-            const comment = five.comment
-            const coordinates = five.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = five.photo
-            const install = five.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = five.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // Точка 6
-          const six= await collection.findOne({ point: 'Точка 6'})
-          if (six) {
-            const name = six.point
-            const rating = six.rating
-            const comment = six.comment
-            const coordinates = six.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = six.photo
-            const install = six.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = six.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // Точка 7
-          const seven= await collection.findOne({ point: 'Точка 7'})
-          if (seven) {
-            const name = seven.point
-            const rating = seven.rating
-            const comment = seven.comment
-            const coordinates = seven.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = seven.photo
-            const install = seven.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = seven.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // Точка 8
-          const eight= await collection.findOne({ point: 'Точка 8'})
-          if (eight) {
-            const name = eight.point
-            const rating = eight.rating
-            const comment = eight.comment
-            const coordinates = eight.coordinates
-            const first = coordinates.split(',')[0].trim()
-            const second = coordinates.split(',')[1].trim()
-            const photo = eight.photo
-            const install = eight.install ? 'Установлена' : 'Точка взята и еще не установлена'
-            const installed = eight.installed
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
-            await this.bot.sendPhoto(chatId, photo)
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
-          }
-
-          // Кастомная 666
-          const six666 = '60.171475, 30.271440'
-          const comment666 = ''
-          const first666 = six666.split(',')[0].trim()
-          const second666 = six666.split(',')[1].trim()
-          const text666 = `<b>Кастомная Точка №666</b>\n<code>${first666}, ${second666}</code>\n<a href="https://yandex.ru/maps/?ll=${second666}%2C${first666}&mode=search&sll=${first666}%${second666}&text=${first666}%2C${second666}&z=15">Посмотреть на карте</a>\n${comment666}\n--------------------------------------`
-          await this.bot.sendMessage(chatId, text666, { parse_mode: 'HTML', disable_web_page_preview: true })
 
           // Общая карта всех точек
           await this.bot.sendMessage(chatId, `<a href="https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09">Ссылка на карту со всеми точками</a>`, {
@@ -345,6 +214,12 @@ export default class BotLogic {
     coordinates = ''
     comment = ''
     rating = 0
+  }
+
+  delay (minDelay, maxDelay) {
+    const timeout = maxDelay ? ~~((minDelay + (maxDelay - minDelay) * Math.random())) : minDelay
+
+    return new Promise(resolve => setTimeout(resolve, timeout))
   }
 
   stop () {
