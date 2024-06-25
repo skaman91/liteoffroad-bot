@@ -67,8 +67,10 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} балл.` : `@${installed} получит 1 балл, когда установит эту точку`
             const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\nЗа взятие этой точки вам будет начислен ${rating} балл.\n${installedComment}\n--------------------------------------`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
+            // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
                 caption: text,
@@ -115,19 +117,38 @@ export default class BotLogic {
           const pointField = /точка [0-9]+/i.test(msg.text)
           if (pointField && !point) {
             point = msg.text
+            const pointInBase = await collection.findOne({ point: point })
+            if (!pointInBase) {
+              await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
+              return
+            }
+            console.log('pointInBase.install', pointInBase.install )
+            console.log('install', install )
+            if (install && pointInBase.install) {
+              await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
+              return
+            }
+            if (!install && !profile.install) {
+              await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
+              return
+            }
             await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты, постарайся что бы они были в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123" ')
             step = 2
             return
           }
         } else if (step === 1 && !install) {
           point = msg.text
+          const pointInBase = await collection.findOne({ point: point })
+          if (!pointInBase) {
+            await this.bot.sendMessage(chatId, 'Такой точка не существует, возможно вы опечатались')
+            return
+          }
           await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
-          console.log('point', point)
           step = 4
         }
 
         if (step === 2 && point && !coordinates) {
-          const coordinatesField = /(\d+\.\d{4,}, \d+\.\d{4,})/i.test(msg.text)
+          const coordinatesField = /(\d\d\.\d{4,}, \d\d\.\d{4,})/i.test(msg.text)
           if (coordinatesField && !coordinates && install) {
             coordinates = msg.text
             step = 3
