@@ -30,7 +30,7 @@ export default class BotLogic {
     if (!this.bot) {
       this.bot = new TelegramBot(this.apiToken, { polling: true })
       console.log('bot', this.bot)
-      this.bot.setMyCommands(commands)
+      await this.bot.setMyCommands(commands)
       this.bot.on('message', msg => this.onMessage(msg))
       this.bot.on('photo', msg => this.onFile(msg))
       this.bot.on('callback_query', msg => this.onCallback(msg))
