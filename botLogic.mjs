@@ -1,11 +1,9 @@
 import TelegramBot from 'node-telegram-bot-api'
 import mongoose, { Mongoose } from 'mongoose'
-import { DB } from './auth/bot.mjs'
+import { MONGO_URL } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands } from './const.js'
-
-const url = 'mongodb+srv://skaman93:kadha7-Qyrrit-hisfer@cluster0.qn6jtl9.mongodb.net/?'
-const client = new MongoClient(url)
+const client = new MongoClient(MONGO_URL)
 await client.connect()
 console.log('Connected successfully to db')
 const db = client.db('liteoffroad')
