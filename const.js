@@ -33,6 +33,11 @@ const commands = [
   {
     command: "results",
     description: "Общие результаты игры"
+  },
+
+  {
+    command: "archive",
+    description: 'Показать архив взятых точек'
   }
 ]
 
