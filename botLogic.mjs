@@ -1,5 +1,4 @@
 import TelegramBot from 'node-telegram-bot-api'
-import mongoose, { Mongoose } from 'mongoose'
 import { MONGO_URL } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands } from './const.js'
