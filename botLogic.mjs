@@ -148,14 +148,14 @@ export default class BotLogic {
         }
 
         if (step === 2 && point && !coordinates) {
-          const coordinatesField = /(\d\d\.\d{4,}, \d\d\.\d{4,})/i.test(msg.text)
+          const coordinatesField = /^(\d\d\.\d{4,}, \d\d\.\d{4,})$/i.test(msg.text)
           if (coordinatesField && !coordinates && install) {
             coordinates = msg.text
             step = 3
             await this.bot.sendMessage(chatId, 'Напиши краткий комментарий к точке, например уровень сложности, рекомендации или что-то такое.')
             return
           } else if (!coordinatesField && !coordinates && install) {
-            await this.bot.sendMessage(chatId, 'Формат координат не верный, нужно что бы они были в таком формате "60.342349, 30.017123" (без ковычек, просто цифры с запятой посередине). Если хочешь отменить оформление взятия точки, то напиши "отменить"')
+            await this.bot.sendMessage(chatId, 'Формат координат неверный, нужно что бы они были в таком формате "60.342349, 30.017123" (без ковычек, просто цифры с запятой посередине). Если хочешь отменить оформление взятия точки, то напиши "отменить"')
 
             return
           }
