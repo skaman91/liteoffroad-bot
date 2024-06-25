@@ -36,6 +36,7 @@ export default class BotLogic {
       this.bot.setMyCommands(commands)
       this.bot.on('message', msg => this.onMessage(msg))
       this.bot.on('photo', msg => this.onFile(msg))
+      this.bot.on('callback_query', msg => this.onCallback(msg))
     }
   }
 
@@ -97,7 +98,7 @@ export default class BotLogic {
 
         if (/((взял|установил) точку)|(\/take|\/install_point)/i.test(msg.text)) {
           this.defaultData()
-          const profile = await userCollection.findOne({ id: msg.from.id } )
+          const profile = await userCollection.findOne({ id: msg.from.id })
           if (!profile) {
             await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
             return
@@ -122,17 +123,13 @@ export default class BotLogic {
               await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
               return
             }
-            console.log('pointInBase.install', pointInBase.install )
-            console.log('install', install )
+            console.log('pointInBase.install', pointInBase.install)
+            console.log('install', install)
             if (install && pointInBase.install) {
               await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
               return
             }
-            if (!install && !profile.install) {
-              await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
-              return
-            }
-            await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты, постарайся что бы они были в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123" ')
+            await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты. Они должны быть в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123"')
             step = 2
             return
           }
@@ -140,7 +137,11 @@ export default class BotLogic {
           point = msg.text
           const pointInBase = await collection.findOne({ point: point })
           if (!pointInBase) {
-            await this.bot.sendMessage(chatId, 'Такой точка не существует, возможно вы опечатались')
+            await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
+            return
+          }
+          if (!install && !pointInBase.install) {
+            await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
             return
           }
           await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
@@ -171,7 +172,7 @@ export default class BotLogic {
 
         if (/^\/profile$/i.test(msg.text)) {
           const id = msg.from.id
-          const profile = await userCollection.findOne({ id: id} )
+          const profile = await userCollection.findOne({ id: id })
           if (profile) {
             const username = msg.from.username
             const firstName = msg.from.first_name
@@ -179,7 +180,7 @@ export default class BotLogic {
             const takePoints = profile.takePoints
             const installPoints = profile.installPoints
             const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
-            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML'})
+            await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           }
         }
 
@@ -198,7 +199,7 @@ export default class BotLogic {
           const rating = 0
           const takePoints = 0
           const installPoints = 0
-          const profile = await userCollection.findOne({ id: id} )
+          const profile = await userCollection.findOne({ id: id })
           if (!profile) {
             await userCollection.insertOne({
               id: id,
@@ -218,20 +219,42 @@ export default class BotLogic {
     }
   }
 
+  async onCallback (msg) {
+    try {
+      console.log('msg', msg)
+      switch (msg.data) {
+        case 'tookPoints': { // забрал
+          console.log('Забрал точку')
+          break
+        }
+        case 'leftItThere': { // оставил
+          console.log('point', point)
+          await collection.updateOne({ point: point }, { $inc: { rating: 1, }})
+          break
+        }
+      }
+    } catch (e) {
+      console.log('Failed onMessage', e.message)
+    }
+  }
+
   async onFile (msg) {
     try {
       const file = msg.photo[0].file_id
       const chatId = msg.from.id
       const pointField = await collection.findOne({ point: point })
       if (step === 4 && file) {
-        await this.bot.sendMessage(chatId, `Отлично, этого достаточно. За установку этой точки, тебе начислен ${point.rating} балл`)
+        const text = install
+          ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл'
+          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} балл`
+        await this.bot.sendMessage(chatId, text)
         rating = pointField.rating
       } else {
         return
       }
-      const profile = await userCollection.findOne({ id: msg.from.id } )
+      const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +1\nОбщий рейтинг ${profile.rating}`
         : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
       await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
       await this.bot.sendPhoto(chatId, file)
@@ -261,23 +284,38 @@ export default class BotLogic {
           })
         }
 
-        await userCollection.updateOne({username: msg.from.username},{$inc: {
+        await userCollection.updateOne({ username: msg.from.username }, {
+          $inc: {
             rating: rating,
             installPoints: install ? 1 : 0,
             takePoints: !install ? 1 : 0
-          }})
+          }
+        })
 
-        await collection.updateOne({point: point}, {$set: {
+        await collection.updateOne({ point: point }, {
+          $set: {
             install: install,
             coordinates: install ? coordinates : ',',
             comment: comment,
             photo: file,
             rating: 1,
-          }})
+          }
+        })
+        if (!install) {
+          await this.bot.sendMessage(chatId, `Точка осталась на месте или забрал?`, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Оставил', callback_data: 'leftItThere' }],
+                [{ text: 'Забрал', callback_data: 'tookPoints' }]
+              ]
+            }
+          })
+        } else {
+          this.defaultData()
+        }
       } else {
         await this.bot.sendMessage(chatId, 'Такая точка не найдена')
       }
-      this.defaultData()
     } catch (e) {
       console.log('Failed onFile', e.message)
     }
