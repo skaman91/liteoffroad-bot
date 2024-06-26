@@ -43,7 +43,7 @@ export default class BotLogic {
         console.log(msg)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
-        if (/^(точки|\/points)$/i.test(msg.text)) {
+        if (msg.text === '/points') {
           const cursor = await collection.find()
           let i = 0
           const points = []
@@ -86,63 +86,39 @@ export default class BotLogic {
           })
         }
 
-        if (/карта|\/map$/i.test(msg.text)) {
+        if (msg.text === '/map') {
           await this.bot.sendMessage(chatId, `<a href="https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09">Ссылка на карту со всеми точками</a>`, {
             parse_mode: 'HTML',
             disable_web_page_preview: true
           })
         }
 
-        if (/((взял|установил) точку)|(\/take|\/install_point)/i.test(msg.text)) {
+        if (/(\/take|\/install_point)/i.test(msg.text)) {
           this.defaultData()
           const profile = await userCollection.findOne({ id: msg.from.id })
           if (!profile) {
             await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
             return
           }
-          install = /установил точку|\/install_point/i.test(msg.text)
+          install = /\/install_point/i.test(msg.text)
           if (!install) {
-            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😂')
+            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
           } else {
-            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Установку точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😂')
+            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Установку точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
           }
-          await this.bot.sendMessage(chatId, 'Напиши номер точки. Например "точка 5" или "Северная точка 1" или "Кастомная точка 666"')
+          await this.bot.sendMessage(chatId, `Какой номер точки?`, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '1 северня', callback_data: 'takePoint1S' }, { text: '1 южная', callback_data: 'takePoint1Y' }],
+                [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2 южная', callback_data: 'takePoint2Y' }],
+                [{ text: '5', callback_data: 'takePoint5' }, { text: '6', callback_data: 'takePoint6' }],
+                [{ text: '7', callback_data: 'takePoint7' }, { text: '8', callback_data: 'takePoint8' }], [{ text: '666', callback_data: 'takePoint666' }],
+                [{ text: '88 тестовая', callback_data: 'takePoint88' }]
+              ]
+            }
+          })
           step = 1
           return
-        }
-
-        if (step === 1 && !point && install) {
-          const pointField = /точка [0-9]+/i.test(msg.text)
-          if (pointField && !point) {
-            point = msg.text
-            const pointInBase = await collection.findOne({ point: point })
-            if (!pointInBase) {
-              await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
-              return
-            }
-            console.log('pointInBase.install', pointInBase.install)
-            console.log('install', install)
-            if (install && pointInBase.install) {
-              await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
-              return
-            }
-            await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты. Они должны быть в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123"')
-            step = 2
-            return
-          }
-        } else if (step === 1 && !install) {
-          point = msg.text
-          const pointInBase = await collection.findOne({ point: point })
-          if (!pointInBase) {
-            await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
-            return
-          }
-          if (!install && !pointInBase.install) {
-            await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
-            return
-          }
-          await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
-          step = 4
         }
 
         if (step === 2 && point && !coordinates) {
@@ -281,9 +257,95 @@ export default class BotLogic {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
+        case 'takePoint1S': {
+          await this.takePoint(msg, 'Точка 1 северная')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint1Y': {
+          await this.takePoint(msg, 'Точка 1 южная')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint2S': {
+          await this.takePoint(msg, 'Точка 2 северная')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint2Y': {
+          await this.takePoint(msg, 'Точка 1 южная')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint5': {
+          await this.takePoint(msg, 'Точка 5')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint6': {
+          await this.takePoint(msg, 'Точка 6')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint7': {
+          await this.takePoint(msg, 'Точка 7')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint8': {
+          await this.takePoint(msg, 'Точка 8')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint666': {
+          await this.takePoint(msg, 'Точка 666')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint88': {
+          await this.takePoint(msg, 'Точка 88')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
+    }
+  }
+
+  async takePoint(msg, pointText) {
+    const chatId = msg.from.id
+    if (step === 1 && !point && install) {
+      const pointField = /точка [0-9]+/i.test(pointText)
+      if (pointField && !point) {
+        point = pointText
+        const pointInBase = await collection.findOne({ point: pointText })
+        if (!pointInBase) {
+          await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
+          return
+        }
+        console.log('pointInBase.install', pointInBase.install)
+        console.log('install', install)
+        if (install && pointInBase.install) {
+          await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
+          return
+        }
+        await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты. Они должны быть в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123"')
+        step = 2
+      }
+    } else if (step === 1 && !install) {
+      point = pointText
+      const pointInBase = await collection.findOne({ point: pointText })
+      if (!pointInBase) {
+        await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
+        return
+      }
+      if (!install && !pointInBase.install) {
+        await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
+        return
+      }
+      await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
+      step = 4
     }
   }
 
