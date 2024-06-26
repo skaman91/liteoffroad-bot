@@ -187,6 +187,42 @@ export default class BotLogic {
 
         if (/^\/archive$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
+          const cursor = await historyCollection.find().limit(30)
+          let i = 0
+          const points = []
+
+          for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+            i++
+            points.push(data)
+          }
+          await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 30 архивных точек:</b>`, { parse_mode: 'HTML' })
+
+          // Архивные Точки
+          for (const point of points) {
+            const name = point.point
+            const rating = point.rating
+            const comment = point.comment
+            const coordinates = point.coordinates
+            const first = coordinates?.split(',')[0].trim()
+            const second = coordinates?.split(',')[1].trim()
+            const photo = point?.photo
+            const install = point.install
+            const installed = point.installed
+            const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
+            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed}`
+            const date = new Date(point.takeTimestamp)
+            const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
+            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
+            // await this.bot.sendLocation(chatId, first, second)
+            if (photo) {
+              await this.bot.sendPhoto(chatId, photo, {
+                caption: text,
+                parse_mode: 'HTML',
+                disable_notification: true,
+                disable_web_page_preview: true
+              })
+            }
+          }
         }
 
         if (/^\/start$/i.test(msg.text)) {
@@ -262,8 +298,8 @@ export default class BotLogic {
             point: pointField.point,
             comment: pointField.comment,
             coordinates: pointField.coordinates,
-            install: pointField.install,
-            installed: true,
+            install: true,
+            installed: msg.from.username,
             photo: pointField.photo,
             rating: pointField.rating,
             takeTimestamp: new Date().getTime()
@@ -273,8 +309,8 @@ export default class BotLogic {
             point: pointField.point,
             comment: pointField.comment,
             coordinates: pointField.coordinates,
-            install: pointField.install,
-            installed: false,
+            install: false,
+            installed: msg.from.username,
             photo: pointField.photo,
             rating: pointField.rating,
             takeTimestamp: new Date().getTime()
