@@ -274,12 +274,11 @@ export default class BotLogic {
       console.log('msg', msg)
       switch (msg.data) {
         case 'tookPoints': { // забрал
-          console.log('Забрал точку')
           break
         }
         case 'leftItThere': { // оставил
-          console.log('point', point)
           await collection.updateOne({ point: point }, { $inc: { rating: 1, }})
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
       }
@@ -356,8 +355,7 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, `Точка осталась на месте или забрал?`, {
             reply_markup: {
               inline_keyboard: [
-                [{ text: 'Оставил', callback_data: 'leftItThere' }],
-                [{ text: 'Забрал', callback_data: 'tookPoints' }]
+                [{ text: 'Оставил', callback_data: 'leftItThere' }, { text: 'Забрал', callback_data: 'tookPoints' }]
               ]
             }
           })
