@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api'
 import { MONGO_URL } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
-import { commands } from './const.js'
+import { commands, rules } from './const.js'
 const client = new MongoClient(MONGO_URL)
 await client.connect()
 console.log('Connected successfully to db')
@@ -196,6 +196,7 @@ export default class BotLogic {
             points.push(data)
           }
           await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 30 архивных точек:</b>`, { parse_mode: 'HTML' })
+          await this.delay(2000)
 
           // Архивные Точки
           for (const point of points) {
@@ -223,6 +224,10 @@ export default class BotLogic {
               })
             }
           }
+        }
+
+        if (msg.text === '/rules') {
+          await this.bot.sendMessage(chatId, rules, { parse_mode: 'HTML', disable_notification: true, disable_web_page_preview: true })
         }
 
         if (/^\/start$/i.test(msg.text)) {
@@ -332,6 +337,7 @@ export default class BotLogic {
             comment: comment,
             photo: file,
             rating: 1,
+            takeTimestamp: new Date().getTime()
           }
         })
         if (!install) {
