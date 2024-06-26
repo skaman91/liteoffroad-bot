@@ -211,19 +211,19 @@ export default class BotLogic {
           await this.delay(2000)
 
           // Архивные Точки
-          for (const point of points) {
-            const name = point.point
-            const rating = point.rating
-            const comment = point.comment
-            const coordinates = point.coordinates
+          for (const archivePoint of points) {
+            const name = archivePoint.point
+            const rating = archivePoint.rating
+            const comment = archivePoint.comment
+            const coordinates = archivePoint.coordinates
             const first = coordinates?.split(',')[0].trim()
             const second = coordinates?.split(',')[1].trim()
-            const photo = point?.photo
-            const install = point.install
-            const installed = point.installed
+            const photo = archivePoint?.photo
+            const install = archivePoint.install
+            const installed = archivePoint.installed
             const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
             const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed}`
-            const date = new Date(point.takeTimestamp)
+            const date = new Date(archivePoint.takeTimestamp)
             const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
             const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
