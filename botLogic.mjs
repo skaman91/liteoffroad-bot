@@ -258,6 +258,7 @@ export default class BotLogic {
               coordinates: install ? coordinates : ',',
               comment: comment,
               photo: photo,
+              installed: msg.from.username,
               rating: 1,
               takeTimestamp: new Date().getTime()
             }
