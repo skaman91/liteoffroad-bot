@@ -17,6 +17,7 @@ let coordinates = ''
 let comment = ''
 let rating = 0
 let install = false
+let photo = ''
 
 export default class BotLogic {
   constructor ({
@@ -250,9 +251,22 @@ export default class BotLogic {
       console.log('msg', msg)
       switch (msg.data) {
         case 'tookPoints': { // забрал
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          await collection.updateOne({ point: point }, {
+            $set: {
+              install: install,
+              coordinates: install ? coordinates : ',',
+              comment: comment,
+              photo: photo,
+              rating: 1,
+              takeTimestamp: new Date().getTime()
+            }
+          })
+          await this.delay(500)
+          this.defaultData()
           break
         }
-        case 'leftItThere': { // оставил
+        case 'noTookPoints': { // оставил
           await collection.updateOne({ point: point }, { $inc: { rating: 1, }})
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
@@ -351,10 +365,10 @@ export default class BotLogic {
 
   async onFile (msg) {
     try {
-      const file = msg.photo[0].file_id
+      photo = msg.photo[0].file_id
       const chatId = msg.from.id
       const pointField = await collection.findOne({ point: point })
-      if (step === 4 && file) {
+      if (step === 4 && photo) {
         const text = install
           ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл'
           : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} балл`
@@ -368,8 +382,7 @@ export default class BotLogic {
         ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +1\nОбщий рейтинг ${profile.rating}`
         : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
       await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
-      await this.bot.sendPhoto(chatId, file)
-
+      await this.bot.sendPhoto(chatId, photo)
       if (pointField) {
         if (install) {
           await historyCollection.insertOne({
@@ -403,21 +416,24 @@ export default class BotLogic {
           }
         })
 
-        await collection.updateOne({ point: point }, {
-          $set: {
-            install: install,
-            coordinates: install ? coordinates : ',',
-            comment: comment,
-            photo: file,
-            rating: 1,
-            takeTimestamp: new Date().getTime()
-          }
-        })
+        if (install) {
+          console.log('1')
+          await collection.updateOne({ point: point }, {
+            $set: {
+              install: install,
+              coordinates: install ? coordinates : ',',
+              comment: comment,
+              photo: photo,
+              rating: 1,
+              takeTimestamp: new Date().getTime()
+            }
+          })
+        }
         if (!install) {
           await this.bot.sendMessage(chatId, `Точка осталась на месте или забрал?`, {
             reply_markup: {
               inline_keyboard: [
-                [{ text: 'Оставил', callback_data: 'leftItThere' }, { text: 'Забрал', callback_data: 'tookPoints' }]
+                [{ text: 'Оставил', callback_data: 'noTookPoints' }, { text: 'Забрал', callback_data: 'tookPoints' }]
               ]
             }
           })
@@ -446,6 +462,7 @@ export default class BotLogic {
     comment = ''
     rating = 0
     install = false
+    photo = ''
   }
 
   stop () {
