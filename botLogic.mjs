@@ -183,6 +183,17 @@ export default class BotLogic {
 
         if (/^\/results$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
+          const cursor = await userCollection.find({rating: {$gt : 0}})
+          let i = 0
+          const resultUsers = []
+
+          for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+            i++
+            resultUsers.push(data)
+          }
+          resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
+          console.log('resultUsers', resultUsers)
+
         }
 
         if (/^\/archive$/i.test(msg.text)) {
