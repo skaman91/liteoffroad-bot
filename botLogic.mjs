@@ -193,7 +193,7 @@ export default class BotLogic {
           }
           resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
           for (let i = 0; i <= 10; i++) {
-            await this.bot.sendMessage(chatId, `${i + 1} Место @${resultUsers[i].username}\n${resultUsers[i].rating} баллов\nВзято ${resultUsers[i].takePoints} точек\nУстановлено ${resultUsers[i].installPoints} точек`, { parse_mode: 'HTML', disable_notification: true })
+            await this.bot.sendMessage(chatId, `${i + 1} Место @${resultUsers[i].username}\n${resultUsers[i].rating} балл\nВзято ${resultUsers[i].takePoints} точек\nУстановлено ${resultUsers[i].installPoints} точек`, { parse_mode: 'HTML', disable_notification: true })
           }
         }
 
