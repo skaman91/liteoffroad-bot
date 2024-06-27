@@ -307,7 +307,7 @@ export default class BotLogic {
           break
         }
         case 'takePoint2Y': {
-          await this.takePoint(msg, 'Точка 1 южная')
+          await this.takePoint(msg, 'Точка 2 южная')
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
