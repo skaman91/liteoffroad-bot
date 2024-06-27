@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { MONGO_URL } from './auth/bot.mjs'
+import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
 const client = new MongoClient(MONGO_URL)
@@ -30,12 +30,17 @@ export default class BotLogic {
   async start () {
     if (!this.bot) {
       this.bot = new TelegramBot(this.apiToken, { polling: true })
-      console.log('bot', this.bot)
+      console.log('bot started')
       await this.bot.setMyCommands(commands)
       this.bot.on('message', msg => this.onMessage(msg))
+      this.bot.on('channel_post', msg => this.onChannelPost(msg))
       this.bot.on('photo', msg => this.onFile(msg))
       this.bot.on('callback_query', msg => this.onCallback(msg))
     }
+  }
+
+  async onChannelPost(msg) {
+    console.log('msg', msg)
   }
 
   async onMessage (msg) {
@@ -44,6 +49,7 @@ export default class BotLogic {
         console.log(msg)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
+        const userName = msg?.from.username
         if (msg.text === '/points') {
           const cursor = await collection.find()
           let i = 0
@@ -58,6 +64,9 @@ export default class BotLogic {
           // Точки
           for (const point of points) {
             const name = point.point
+            if (name === 'Точка 88' && ADMIN !== userName) {
+              continue
+            }
             const rating = point.rating
             const comment = point.comment
             const coordinates = point.coordinates
@@ -175,43 +184,50 @@ export default class BotLogic {
         }
 
         if (/^\/archive$/i.test(msg.text)) {
-          await this.bot.sendMessage(chatId, 'Раздел в разработке')
-          const cursor = await historyCollection.find().limit(30)
-          let i = 0
-          const points = []
+          try {
+            await this.bot.sendMessage(chatId, 'Раздел в разработке')
+            const cursor = await historyCollection.find().limit(30)
+            let i = 0
+            const points = []
 
-          for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
-            i++
-            points.push(data)
-          }
-          await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 30 архивных точек:</b>`, { parse_mode: 'HTML' })
-          await this.delay(2000)
-
-          // Архивные Точки
-          for (const archivePoint of points) {
-            const name = archivePoint.point
-            const rating = archivePoint.rating
-            const comment = archivePoint.comment
-            const coordinates = archivePoint.coordinates
-            const first = coordinates?.split(',')[0].trim()
-            const second = coordinates?.split(',')[1].trim()
-            const photo = archivePoint?.photo
-            const install = archivePoint.install
-            const installed = archivePoint.installed
-            const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed}`
-            const date = new Date(archivePoint.takeTimestamp)
-            const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
-            // await this.bot.sendLocation(chatId, first, second)
-            if (photo) {
-              await this.bot.sendPhoto(chatId, photo, {
-                caption: text,
-                parse_mode: 'HTML',
-                disable_notification: true,
-                disable_web_page_preview: true
-              })
+            for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+              i++
+              points.push(data)
             }
+            await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 30 архивных точек:</b>`, { parse_mode: 'HTML' })
+            await this.delay(2000)
+
+            // Архивные Точки
+            for (const archivePoint of points) {
+              const name = archivePoint.point
+              if (name === 'Точка 88' && ADMIN !== userName) {
+                continue
+              }
+              const rating = archivePoint.rating
+              const comment = archivePoint.comment
+              const coordinates = archivePoint.coordinates
+              const first = coordinates?.split(',')[0].trim()
+              const second = coordinates?.split(',')[1].trim()
+              const photo = archivePoint?.photo
+              const install = archivePoint.install
+              const installed = archivePoint.installed
+              const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
+              const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed}`
+              const date = new Date(archivePoint.takeTimestamp)
+              const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
+              const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
+              // await this.bot.sendLocation(chatId, first, second)
+              if (photo) {
+                await this.bot.sendPhoto(chatId, photo, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                  disable_notification: true,
+                  disable_web_page_preview: true
+                })
+              }
+            }
+          } catch (e) {
+            console.log('Faled Archive', e)
           }
         }
 
@@ -220,6 +236,8 @@ export default class BotLogic {
         }
 
         if (/^\/start$/i.test(msg.text)) {
+          const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
+          await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           const username = msg.from.username
           const firstName = msg.from.first_name
           const id = msg.from.id
@@ -270,6 +288,7 @@ export default class BotLogic {
         case 'noTookPoints': { // оставил
           await collection.updateOne({ point: point }, { $inc: { rating: 1, }})
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           break
         }
         case 'takePoint1S': {
@@ -380,10 +399,26 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +1\nОбщий рейтинг ${profile.rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
         : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
-      await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
-      await this.bot.sendPhoto(chatId, photo)
+
+      const textForChanel = install
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nЕму добавлен рейтинг +${rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nЕму добавлен рейтинг +${rating}`
+
+      await this.bot.sendPhoto(chatId, photo, {
+        caption: text,
+        parse_mode: 'HTML',
+        disable_notification: true,
+        disable_web_page_preview: true
+      })
+      await this.bot.sendPhoto(CHANGE_ID_LITEOFFROAD, photo, {
+        caption: textForChanel,
+        parse_mode: 'HTML',
+        disable_notification: true,
+        disable_web_page_preview: true
+      })
+
       if (pointField) {
         if (install) {
           await historyCollection.insertOne({
