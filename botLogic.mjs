@@ -149,7 +149,7 @@ export default class BotLogic {
           if (!comment) {
             comment = msg.text
             step = 4
-            await this.bot.sendMessage(chatId, 'Отправь одну фотографию установки точки')
+            await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию установки точки')
           }
         }
 
@@ -272,6 +272,7 @@ export default class BotLogic {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await collection.updateOne({ point: point }, {
             $set: {
+              id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
               install: install,
               coordinates: install ? coordinates : ',',
               comment: comment,
@@ -423,6 +424,7 @@ export default class BotLogic {
       if (pointField) {
         if (install) {
           await historyCollection.insertOne({
+            id: pointField.id || Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
             point: pointField.point,
             comment: pointField.comment,
             coordinates: pointField.coordinates,
@@ -434,6 +436,7 @@ export default class BotLogic {
           })
         } else {
           await historyCollection.insertOne({
+            id: pointField.id || Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
             point: pointField.point,
             comment: pointField.comment,
             coordinates: pointField.coordinates,
@@ -464,9 +467,9 @@ export default class BotLogic {
         }
 
         if (install) {
-          console.log('1')
           await collection.updateOne({ point: point }, {
             $set: {
+              id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
               install: install,
               coordinates: install ? coordinates : ',',
               comment: comment,
