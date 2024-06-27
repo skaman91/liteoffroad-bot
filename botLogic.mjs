@@ -454,7 +454,7 @@ export default class BotLogic {
         }
 
         if (msg.from.username) {
-          await userCollection.updateOne({ username: msg.from.username }, {
+          await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
             $inc: {
               rating: rating,
               installPoints: install ? 1 : 0,
@@ -462,7 +462,7 @@ export default class BotLogic {
             }
           })
         } else if (!msg.from.username && msg.from.first_name) {
-          await userCollection.updateOne({ username: msg.from.firstName }, {
+          await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
             $inc: {
               rating: rating,
               installPoints: install ? 1 : 0,
