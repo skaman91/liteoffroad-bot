@@ -49,7 +49,7 @@ export default class BotLogic {
         console.log(msg)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
-        const userName = msg?.from.username
+        const userName = `@${msg?.from.username}`
         if (msg.text === '/points') {
           const cursor = await collection.find()
           let i = 0
@@ -75,8 +75,8 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
-            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} балл.` : `@${installed} получит 1 балл, когда установит эту точку`
-            const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed} и еще не установил`
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} балл.` : `${installed} получит 1 балл, когда установит эту точку`
+            const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
@@ -179,7 +179,12 @@ export default class BotLogic {
           }
           resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
           for (let i = 0; i <= 10; i++) {
-            await this.bot.sendMessage(chatId, `${i + 1} Место @${resultUsers[i].username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, { parse_mode: 'HTML', disable_notification: true })
+            const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
+            if (resultUsers[i].username) {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, { parse_mode: 'HTML', disable_notification: true })
+            } else {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, { parse_mode: 'HTML', disable_notification: true })
+            }
           }
         }
 
@@ -212,7 +217,7 @@ export default class BotLogic {
               const install = archivePoint.install
               const installed = archivePoint.installed
               const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
-              const installedComment = install ? `Установил @${installed}` : `Точку взял @${installed}`
+              const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
               const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
               const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
@@ -277,7 +282,7 @@ export default class BotLogic {
               coordinates: install ? coordinates : ',',
               comment: comment,
               photo: photo,
-              installed: msg.from.username,
+              installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
               rating: 1,
               takeTimestamp: new Date().getTime()
             }
@@ -388,7 +393,7 @@ export default class BotLogic {
     try {
       photo = msg.photo[0].file_id
       const chatId = msg.from.id
-      const username = msg.from.username ? msg.from.username : msg.from.first_name
+      const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
       const pointField = await collection.findOne({ point: point })
       if (step === 4 && photo) {
         const text = install
@@ -401,12 +406,12 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: @${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
 
       const textForChanel = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${username}\n${comment}\nЕму добавлен рейтинг +${rating}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: @${username}\nЕму добавлен рейтинг +${rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +${rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${rating}`
 
       await this.bot.sendPhoto(chatId, photo, {
         caption: text,
@@ -429,7 +434,7 @@ export default class BotLogic {
             comment: pointField.comment,
             coordinates: pointField.coordinates,
             install: true,
-            installed: msg.from.username,
+            installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
             photo: pointField.photo,
             rating: pointField.rating,
             takeTimestamp: new Date().getTime()
@@ -441,7 +446,7 @@ export default class BotLogic {
             comment: pointField.comment,
             coordinates: pointField.coordinates,
             install: false,
-            installed: msg.from.username,
+            installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
             photo: pointField.photo,
             rating: pointField.rating,
             takeTimestamp: new Date().getTime()
