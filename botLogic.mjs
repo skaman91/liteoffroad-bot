@@ -387,6 +387,7 @@ export default class BotLogic {
     try {
       photo = msg.photo[0].file_id
       const chatId = msg.from.id
+      const username = msg.from.username ? msg.from.username : msg.from.first_name
       const pointField = await collection.findOne({ point: point })
       if (step === 4 && photo) {
         const text = install
@@ -399,12 +400,12 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: @${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
 
       const textForChanel = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${msg.from.username}\n${comment}\nЕму добавлен рейтинг +${rating}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: @${msg.from.username}\nЕму добавлен рейтинг +${rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: @${username}\n${comment}\nЕму добавлен рейтинг +${rating}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: @${username}\nЕму добавлен рейтинг +${rating}`
 
       await this.bot.sendPhoto(chatId, photo, {
         caption: text,
@@ -444,13 +445,23 @@ export default class BotLogic {
           })
         }
 
-        await userCollection.updateOne({ username: msg.from.username }, {
-          $inc: {
-            rating: rating,
-            installPoints: install ? 1 : 0,
-            takePoints: !install ? 1 : 0
-          }
-        })
+        if (msg.from.username) {
+          await userCollection.updateOne({ username: msg.from.username }, {
+            $inc: {
+              rating: rating,
+              installPoints: install ? 1 : 0,
+              takePoints: !install ? 1 : 0
+            }
+          })
+        } else if (!msg.from.username && msg.from.first_name) {
+          await userCollection.updateOne({ username: msg.from.firstName }, {
+            $inc: {
+              rating: rating,
+              installPoints: install ? 1 : 0,
+              takePoints: !install ? 1 : 0
+            }
+          })
+        }
 
         if (install) {
           console.log('1')
