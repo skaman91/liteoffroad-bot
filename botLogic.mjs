@@ -378,7 +378,7 @@ export default class BotLogic {
         await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
         return
       }
-      await this.bot.sendMessage(chatId, 'Отправь одну фотографию взятия точки')
+      await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию взятия точки')
       step = 4
     }
   }
