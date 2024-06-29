@@ -103,14 +103,14 @@ export default class BotLogic {
           })
         }
 
-        if (/(\/take|\/install_point)/i.test(msg.text)) {
+        if (/(\/take|\/install)/i.test(msg.text)) {
           this.defaultData()
           const profile = await userCollection.findOne({ id: msg.from.id })
           if (!profile) {
             await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
             return
           }
-          install = /\/install_point/i.test(msg.text)
+          install = /\/install/i.test(msg.text)
           if (!install) {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
           } else {
@@ -216,11 +216,12 @@ export default class BotLogic {
               const photo = archivePoint?.photo
               const install = archivePoint.install
               const installed = archivePoint.installed
+              const id = ADMIN === userName ? `                  id: ${archivePoint.id}` : ''
               const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
               const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
               const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
-              const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
+              const text = `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
               // await this.bot.sendLocation(chatId, first, second)
               if (photo) {
                 await this.bot.sendPhoto(chatId, photo, {
@@ -238,6 +239,32 @@ export default class BotLogic {
 
         if (msg.text === '/rules') {
           await this.bot.sendMessage(chatId, rules, { parse_mode: 'HTML', disable_notification: true, disable_web_page_preview: true })
+        }
+
+        if (/вернуть \d+/i.test(msg.text) && ADMIN === userName) {
+          const backPoint = msg.text.split(' ')[1].trim()
+          await this.bot.sendMessage(chatId, `Возвращаю точку id: ${backPoint}`)
+          const profile = await historyCollection.findOne({ id: parseInt(backPoint) })
+          console.log('backPoint', backPoint)
+          console.log('profile', profile)
+          if (!profile) {
+            await this.bot.sendMessage(chatId, 'Точка с таким id не найдена')
+            return
+          }
+          await collection.updateOne({ point: profile.point }, {
+            $set: {
+              id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
+              install: !profile.install,
+              coordinates: profile.coordinates,
+              comment: profile.comment,
+              photo: profile.photo,
+              installed: profile.installed,
+              rating: profile.rating,
+              takeTimestamp: profile.takeTimestamp,
+            }
+          })
+          // todo Сделать коррекцию рейтинга при переносе
+          await this.bot.sendMessage(chatId, 'Готово')
         }
 
         if (/^\/start$/i.test(msg.text)) {

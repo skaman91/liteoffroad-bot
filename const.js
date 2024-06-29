@@ -21,7 +21,7 @@ const commands = [
   },
 
   {
-    command: "install_point",
+    command: "install",
     description: "Установил точку"
   },
 
