@@ -75,7 +75,7 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
-            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} балл.` : `${installed} получит 1 балл, когда установит эту точку`
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating,'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(rating,'балл')}, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
             const text = !takers.length
@@ -184,12 +184,12 @@ export default class BotLogic {
           for (let i = 0; i <= 10; i++) {
             const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
             if (resultUsers[i].username) {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
             } else {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
@@ -226,7 +226,7 @@ export default class BotLogic {
               const install = archivePoint.install
               const installed = archivePoint.installed
               const id = ADMIN === userName ? `                  id: ${archivePoint.id}` : ''
-              const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
+              const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating,'балл')}.`
               const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
               const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}`
@@ -442,7 +442,7 @@ export default class BotLogic {
       if (step === 4 && photo) {
         const text = install
           ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл'
-          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} балл`
+          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating,'балл')}`
         await this.bot.sendMessage(chatId, text)
         rating = pointField.rating
       } else {
@@ -544,6 +544,22 @@ export default class BotLogic {
     const timeout = maxDelay ? ~~((minDelay + (maxDelay - minDelay) * Math.random())) : minDelay
 
     return new Promise(resolve => setTimeout(resolve, timeout))
+  }
+
+  declOfNum (number, label) {
+    const labels = {
+      'балл': ['балл', 'балла', 'баллов']
+    }
+
+    const map = labels[label]
+
+    if (!map) {
+      return label
+    }
+
+    const cases = [2, 0, 1, 1, 1, 2]
+
+    return map[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]]
   }
 
   defaultData () {
