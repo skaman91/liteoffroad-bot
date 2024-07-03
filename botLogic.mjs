@@ -39,7 +39,7 @@ export default class BotLogic {
     }
   }
 
-  async onChannelPost(msg) {
+  async onChannelPost (msg) {
     console.log('msg', msg)
   }
 
@@ -77,7 +77,10 @@ export default class BotLogic {
             const installed = point.installed
             const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} балл.` : `${installed} получит 1 балл, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
-            const text = `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
+            const takers = point.takers ? point?.takers?.join(', ') : []
+            const text = !takers.length
+              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
+              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
@@ -169,7 +172,7 @@ export default class BotLogic {
 
         if (/^\/results$/i.test(msg.text)) {
           await this.bot.sendMessage(chatId, 'Раздел в разработке')
-          const cursor = await userCollection.find({rating: {$gt : 0}})
+          const cursor = await userCollection.find({ rating: { $gt: 0 } })
           let i = 0
           const resultUsers = []
 
@@ -181,9 +184,15 @@ export default class BotLogic {
           for (let i = 0; i <= 10; i++) {
             const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
             if (resultUsers[i].username) {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, { parse_mode: 'HTML', disable_notification: true })
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+                parse_mode: 'HTML',
+                disable_notification: true
+              })
             } else {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, { parse_mode: 'HTML', disable_notification: true })
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} балл\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+                parse_mode: 'HTML',
+                disable_notification: true
+              })
             }
           }
         }
@@ -220,8 +229,11 @@ export default class BotLogic {
               const ratingInfo = `За взятие этой точки было начислено ${rating} балл.`
               const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
-              const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth()+1} - ${date.getDate()}`
-              const text = `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочка в архиве, на месте ее НЕТ!!!\n--------------------------------------`
+              const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}`
+              const historyTakers = archivePoint.takers?.join(', ')
+              const text = !historyTakers
+                ? `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
+                : `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${historyTakers}\n--------------------------------------`
               // await this.bot.sendLocation(chatId, first, second)
               if (photo) {
                 await this.bot.sendPhoto(chatId, photo, {
@@ -238,7 +250,11 @@ export default class BotLogic {
         }
 
         if (msg.text === '/rules') {
-          await this.bot.sendMessage(chatId, rules, { parse_mode: 'HTML', disable_notification: true, disable_web_page_preview: true })
+          await this.bot.sendMessage(chatId, rules, {
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
         }
 
         if (/вернуть \d+/i.test(msg.text) && ADMIN === userName) {
@@ -319,7 +335,10 @@ export default class BotLogic {
           break
         }
         case 'noTookPoints': { // оставил
-          await collection.updateOne({ point: point }, { $inc: { rating: 1, }})
+          const isPoint = await collection.findOne({ point: point })
+          const user = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
+          const takers = isPoint.takers ? isPoint.takers.push(user) : [user]
+          await collection.updateOne({ point: point }, { $inc: { rating: 1, }, $set: { takers: takers } })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           break
@@ -380,7 +399,7 @@ export default class BotLogic {
     }
   }
 
-  async takePoint(msg, pointText) {
+  async takePoint (msg, pointText) {
     const chatId = msg.from.id
     if (step === 1 && !point && install) {
       const pointField = /точка [0-9]+/i.test(pointText)
@@ -391,8 +410,6 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
           return
         }
-        console.log('pointInBase.install', pointInBase.install)
-        console.log('install', install)
         if (install && pointInBase.install) {
           await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
           return
@@ -464,6 +481,7 @@ export default class BotLogic {
             installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
             photo: pointField.photo,
             rating: pointField.rating,
+            takers: pointField.takers,
             takeTimestamp: new Date().getTime()
           })
         } else {
@@ -476,27 +494,18 @@ export default class BotLogic {
             installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
             photo: pointField.photo,
             rating: pointField.rating,
+            takers: pointField.takers,
             takeTimestamp: new Date().getTime()
           })
         }
 
-        if (msg.from.username) {
-          await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
-            $inc: {
-              rating: rating,
-              installPoints: install ? 1 : 0,
-              takePoints: !install ? 1 : 0
-            }
-          })
-        } else if (!msg.from.username && msg.from.first_name) {
-          await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
-            $inc: {
-              rating: rating,
-              installPoints: install ? 1 : 0,
-              takePoints: !install ? 1 : 0
-            }
-          })
-        }
+        await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
+          $inc: {
+            rating: rating,
+            installPoints: install ? 1 : 0,
+            takePoints: !install ? 1 : 0
+          }
+        })
 
         if (install) {
           await collection.updateOne({ point: point }, {
@@ -507,6 +516,7 @@ export default class BotLogic {
               comment: comment,
               photo: photo,
               rating: 1,
+              takers: [],
               takeTimestamp: new Date().getTime()
             }
           })
