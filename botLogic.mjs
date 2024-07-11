@@ -89,6 +89,12 @@ export default class BotLogic {
                 disable_notification: true,
                 disable_web_page_preview: true
               })
+            } else {
+              await this.bot.sendMessage(chatId, text, {
+                parse_mode: 'HTML',
+                disable_notification: true,
+                disable_web_page_preview: true
+              })
             }
           }
 
@@ -125,7 +131,8 @@ export default class BotLogic {
                 [{ text: '1 северня', callback_data: 'takePoint1S' }, { text: '1 южная', callback_data: 'takePoint1Y' }],
                 [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2 южная', callback_data: 'takePoint2Y' }],
                 [{ text: '5', callback_data: 'takePoint5' }, { text: '6', callback_data: 'takePoint6' }],
-                [{ text: '7', callback_data: 'takePoint7' }, { text: '8', callback_data: 'takePoint8' }], [{ text: '666', callback_data: 'takePoint666' }],
+                [{ text: '7', callback_data: 'takePoint7' }, { text: '8', callback_data: 'takePoint8' }],
+                [{ text: '9', callback_data: 'takePoint9' }, { text: '666', callback_data: 'takePoint666' }],
                 [{ text: '88 тестовая', callback_data: 'takePoint88' }]
               ]
             }
@@ -314,7 +321,6 @@ export default class BotLogic {
 
   async onCallback (msg) {
     try {
-      console.log('msg', msg)
       switch (msg.data) {
         case 'tookPoints': { // забрал
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
@@ -380,6 +386,11 @@ export default class BotLogic {
         }
         case 'takePoint8': {
           await this.takePoint(msg, 'Точка 8')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint9': {
+          await this.takePoint(msg, 'Точка 9')
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
@@ -499,19 +510,30 @@ export default class BotLogic {
           })
         }
 
-        await userCollection.updateOne({ username: msg.from.username ? `@${msg.from.username}` : msg.from.first_name }, {
-          $inc: {
-            rating: rating,
-            installPoints: install ? 1 : 0,
-            takePoints: !install ? 1 : 0
-          }
-        })
+        if (msg.from.username) {
+          await userCollection.updateOne({ username: msg.from.username }, {
+            $inc: {
+              rating: rating,
+              installPoints: install ? 1 : 0,
+              takePoints: !install ? 1 : 0
+            }
+          })
+        } else if (msg.from.first_name) {
+          await userCollection.updateOne({ firstName: msg.from.first_name }, {
+            $inc: {
+              rating: rating,
+              installPoints: install ? 1 : 0,
+              takePoints: !install ? 1 : 0
+            }
+          })
+        }
 
         if (install) {
           await collection.updateOne({ point: point }, {
             $set: {
               id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
               install: install,
+              installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
               coordinates: install ? coordinates : ',',
               comment: comment,
               photo: photo,
