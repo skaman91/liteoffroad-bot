@@ -50,6 +50,12 @@ export default class BotLogic {
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
         const userName = `@${msg?.from.username}`
+        const profile = await userCollection.findOne({ id: msg.from.id })
+
+        if (profile.banned) {
+          await this.bot.sendMessage(chatId, `Вам запрещено пользоваться ботом`)
+          return
+        }
         if (msg.text === '/points') {
           const cursor = await collection.find()
           let i = 0
@@ -99,14 +105,14 @@ export default class BotLogic {
           }
 
           // Общая карта всех точек
-          await this.bot.sendMessage(chatId, `<a href="https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09">Ссылка на карту со всеми точками</a>`, {
+          await this.bot.sendMessage(chatId, `<a href="https://point-map.ru/">Ссылка на карту со всеми точками</a>`, {
             parse_mode: 'HTML',
             disable_web_page_preview: true
           })
         }
 
         if (msg.text === '/map') {
-          await this.bot.sendMessage(chatId, `<a href="https://yandex.ru/maps/?ll=30.260584%2C60.190150&mode=usermaps&source=constructorLink&um=constructor%3A835749c06de950dec11aa07d7999866ffd93035133cdbd7b81c7baa0238778ed&z=11.09">Ссылка на карту со всеми точками</a>`, {
+          await this.bot.sendMessage(chatId, `<a href="https://point-map.ru/">Ссылка на карту со всеми точками</a>`, {
             parse_mode: 'HTML',
             disable_web_page_preview: true
           })
@@ -264,6 +270,7 @@ export default class BotLogic {
           })
         }
 
+        // ADMIN
         if (/вернуть \d+/i.test(msg.text) && ADMIN === userName) {
           const backPoint = msg.text.split(' ')[1].trim()
           await this.bot.sendMessage(chatId, `Возвращаю точку id: ${backPoint}`)
@@ -290,6 +297,21 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, 'Готово')
         }
 
+        if (/правка/i.test(msg.text) && ADMIN === userName) {
+          // выполнить какое нибудь действие админом
+        }
+
+        if (/забанить /i.test(msg.text) && ADMIN === userName) {
+          const banUser = msg.text.split(' ')[1].trim()
+          await userCollection.updateOne({username: banUser}, { $set: { "banned": true } })
+          await this.bot.sendMessage(chatId, `Пользователь ${banUser} забанен`)
+        }
+        if (/разбанить /i.test(msg.text) && ADMIN === userName) {
+          const banUser = msg.text.split(' ')[1].trim()
+          await userCollection.updateOne({username: banUser}, { $set: { "banned": false } })
+          await this.bot.sendMessage(chatId, `Пользователь ${banUser} разбанен`)
+        }
+
         if (/^\/start$/i.test(msg.text)) {
           const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
           await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
@@ -308,6 +330,7 @@ export default class BotLogic {
               rating: rating,
               takePoints: takePoints,
               installPoints: installPoints,
+              banned: false,
             })
             await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
           }
@@ -343,7 +366,8 @@ export default class BotLogic {
         case 'noTookPoints': { // оставил
           const isPoint = await collection.findOne({ point: point })
           const user = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
-          const takers = isPoint.takers ? isPoint.takers.push(user) : [user]
+          const takers = isPoint.takers
+          takers.push(user)
           await collection.updateOne({ point: point }, { $inc: { rating: 1, }, $set: { takers: takers } })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
