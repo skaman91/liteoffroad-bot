@@ -52,7 +52,7 @@ export default class BotLogic {
         const userName = `@${msg?.from.username}`
         const profile = await userCollection.findOne({ id: msg.from.id })
 
-        if (profile.banned) {
+        if (profile && profile.banned) {
           await this.bot.sendMessage(chatId, `Вам запрещено пользоваться ботом`)
           return
         }
