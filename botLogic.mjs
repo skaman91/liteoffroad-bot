@@ -134,12 +134,13 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, `Какой номер точки?`, {
             reply_markup: {
               inline_keyboard: [
-                [{ text: '1 северня', callback_data: 'takePoint1S' }, { text: '1 южная', callback_data: 'takePoint1Y' }],
-                [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2 южная', callback_data: 'takePoint2Y' }],
+                [{ text: '1 южная', callback_data: 'takePoint1Y' }],  //{ text: '1', callback_data: 'takePoint1' },
+                [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2', callback_data: 'takePoint2' }],
+                [{ text: '3', callback_data: 'takePoint3' }, { text: '4', callback_data: 'takePoint4' }],
                 [{ text: '5', callback_data: 'takePoint5' }, { text: '6', callback_data: 'takePoint6' }],
                 [{ text: '7', callback_data: 'takePoint7' }, { text: '8', callback_data: 'takePoint8' }],
-                [{ text: '9', callback_data: 'takePoint9' }, { text: '666', callback_data: 'takePoint666' }],
-                [{ text: '88 тестовая', callback_data: 'takePoint88' }]
+                [{ text: '9', callback_data: 'takePoint9' }, { text: '10', callback_data: 'takePoint10' }],
+                [{ text: '666', callback_data: 'takePoint666' }, { text: '88 тестовая', callback_data: 'takePoint88' }]
               ]
             }
           })
@@ -373,8 +374,8 @@ export default class BotLogic {
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           break
         }
-        case 'takePoint1S': {
-          await this.takePoint(msg, 'Точка 1 северная')
+        case 'takePoint1': {
+          await this.takePoint(msg, 'Точка 1')
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
@@ -388,8 +389,18 @@ export default class BotLogic {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
-        case 'takePoint2Y': {
-          await this.takePoint(msg, 'Точка 2 южная')
+        case 'takePoint2': {
+          await this.takePoint(msg, 'Точка 2')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint3': {
+          await this.takePoint(msg, 'Точка 3')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint4': {
+          await this.takePoint(msg, 'Точка 4')
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
@@ -415,6 +426,11 @@ export default class BotLogic {
         }
         case 'takePoint9': {
           await this.takePoint(msg, 'Точка 9')
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          break
+        }
+        case 'takePoint10': {
+          await this.takePoint(msg, 'Точка 10')
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
