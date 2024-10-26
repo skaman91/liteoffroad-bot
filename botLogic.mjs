@@ -134,7 +134,7 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, `Какой номер точки?`, {
             reply_markup: {
               inline_keyboard: [
-                [{ text: '1 южная', callback_data: 'takePoint1Y' }],  //{ text: '1', callback_data: 'takePoint1' },
+                [{ text: '1 южная', callback_data: 'takePoint1Y' }],  { text: '1', callback_data: 'takePoint1' },
                 [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2', callback_data: 'takePoint2' }],
                 [{ text: '3', callback_data: 'takePoint3' }, { text: '4', callback_data: 'takePoint4' }],
                 [{ text: '5', callback_data: 'takePoint5' }, { text: '6', callback_data: 'takePoint6' }],
