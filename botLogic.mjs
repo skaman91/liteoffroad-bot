@@ -471,7 +471,7 @@ export default class BotLogic {
           return
         }
         if (install && pointInBase.install) {
-          await this.bot.sendMessage(chatId, 'Точка уже установлена, ее сперва нужно взять')
+          await this.bot.sendMessage(chatId, '❗Точка уже установлена, ее сперва нужно взять❗')
           return
         }
         await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты. Они должны быть в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123"')
@@ -481,11 +481,17 @@ export default class BotLogic {
       point = pointText
       const pointInBase = await collection.findOne({ point: pointText })
       if (!pointInBase) {
-        await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
+        await this.bot.sendMessage(chatId, '❗Такой точки не существует, возможно вы опечатались❗')
         return
       }
       if (!install && !pointInBase.install) {
-        await this.bot.sendMessage(chatId, 'Точка уже взята, ее сперва нужно установить')
+        await this.bot.sendMessage(chatId, '❗Точка уже взята, ее сперва нужно установить❗')
+        return
+      }
+      const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
+
+      if ((!install && pointInBase.takers.includes(username)) || (!install && pointInBase.installed === username)) {
+        await this.bot.sendMessage(chatId, `❗❗❗Вы уже брали эту точку, нельзя брать точки повторно. Вы сможете снова взять эту точку, только если другой участник ее переставит.❗❗❗`)
         return
       }
       await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию взятия точки')
