@@ -196,7 +196,7 @@ export default class BotLogic {
             resultUsers.push(data)
           }
           resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
-          for (let i = 0; i <= 10; i++) {
+          for (let i = 0; i <= 15; i++) {
             const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
             if (resultUsers[i].username) {
               await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
