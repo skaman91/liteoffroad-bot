@@ -172,21 +172,22 @@ export default class BotLogic {
         }
 
         if (/^\/profile$/i.test(msg.text)) {
+          await this.refreshRating()
           const id = msg.from.id
           const profile = await userCollection.findOne({ id: id })
           if (profile) {
             const username = msg.from.username
             const firstName = msg.from.first_name
             const rating = profile.rating
+            const position = profile.position
             const takePoints = profile.takePoints
             const installPoints = profile.installPoints
-            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
+            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nВаше место в рейтинге: ${position}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           }
         }
 
         if (/^\/results$/i.test(msg.text)) {
-          await this.bot.sendMessage(chatId, 'Раздел в разработке')
           const cursor = await userCollection.find({ rating: { $gt: 0 } })
           let i = 0
           const resultUsers = []
@@ -198,13 +199,24 @@ export default class BotLogic {
           resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
           for (let i = 0; i <= 15; i++) {
             const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
+            const date = new Date(resultUsers[i].positionTime)
+            const now = new Date()
+            const diffInMs = now - date
+            const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+            const hoursDiff = Math.floor(diffInMs / (1000 * 60 * 60))
+            const minutesDiff = Math.floor(diffInMs / (1000 * 60))
+            const ratingText = daysDiff
+              ? `На ${i + 1} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+              : hoursDiff
+              ? `На ${i + 1} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+              : `На ${i + 1} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
             if (resultUsers[i].username) {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
             } else {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
@@ -320,19 +332,18 @@ export default class BotLogic {
           const username = msg.from.username
           const firstName = msg.from.first_name
           const id = msg.from.id
-          const rating = 0
-          const takePoints = 0
-          const installPoints = 0
           const profile = await userCollection.findOne({ id: id })
           if (!profile) {
             await userCollection.insertOne({
               id: id,
               firstName: firstName,
               username: username,
-              rating: rating,
-              takePoints: takePoints,
-              installPoints: installPoints,
-              banned: false,
+              rating: 0,
+              position: 0,
+              positionTime: new Date().getTime(),
+              takePoints: 0,
+              installPoints: 0,
+              banned: false
             })
             await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
           }
@@ -491,6 +502,27 @@ export default class BotLogic {
     }
   }
 
+  async refreshRating () {
+    const cursor = await userCollection.find({ rating: { $gt: 0 } })
+    const resultUsers = []
+    let i = 1
+
+    for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+      resultUsers.push(data)
+    }
+    resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
+    for (const user of resultUsers) {
+      if (user.position !== i) {
+        await userCollection.updateOne({ id: user.id }, {
+          $set: {
+            position: i,
+            positionTime: new Date().getTime(),
+          } }, {})
+      }
+      i++
+    }
+  }
+
   async onFile (msg) {
     try {
       photo = msg.photo[0].file_id
@@ -558,6 +590,7 @@ export default class BotLogic {
         }
 
         if (msg.from.id) {
+          await this.refreshRating()
           await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
               rating: rating,
@@ -609,7 +642,10 @@ export default class BotLogic {
 
   declOfNum (number, label) {
     const labels = {
-      'балл': ['балл', 'балла', 'баллов']
+      'балл': ['балл', 'балла', 'баллов'],
+      'час': ['час', 'часа', 'часов'],
+      'мин': ['минута', 'минуты', 'минут'],
+      'дней': ['день', 'дня', 'дней']
     }
 
     const map = labels[label]
