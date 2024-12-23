@@ -81,7 +81,7 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
-            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating,'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(rating,'балл')}, когда установит эту точку`
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(rating, 'балл')}, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
             const text = !takers.length
@@ -172,7 +172,6 @@ export default class BotLogic {
         }
 
         if (/^\/profile$/i.test(msg.text)) {
-          await this.refreshRating()
           const id = msg.from.id
           const profile = await userCollection.findOne({ id: id })
           if (profile) {
@@ -188,15 +187,7 @@ export default class BotLogic {
         }
 
         if (/^\/results$/i.test(msg.text)) {
-          const cursor = await userCollection.find({ rating: { $gt: 0 } })
-          let i = 0
-          const resultUsers = []
-
-          for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
-            i++
-            resultUsers.push(data)
-          }
-          resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
+          const resultUsers = await this.ratingCursor()
           for (let i = 0; i <= 15; i++) {
             const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
             const date = new Date(resultUsers[i].positionTime)
@@ -208,15 +199,15 @@ export default class BotLogic {
             const ratingText = daysDiff
               ? `На ${i + 1} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
               : hoursDiff
-              ? `На ${i + 1} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-              : `На ${i + 1} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                ? `На ${i + 1} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                : `На ${i + 1} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
             if (resultUsers[i].username) {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
             } else {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating,'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
+              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
                 parse_mode: 'HTML',
                 disable_notification: true
               })
@@ -253,7 +244,7 @@ export default class BotLogic {
               const install = archivePoint.install
               const installed = archivePoint.installed
               const id = ADMIN === userName ? `                  id: ${archivePoint.id}` : ''
-              const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating,'балл')}.`
+              const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating, 'балл')}.`
               const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
               const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}`
@@ -317,12 +308,12 @@ export default class BotLogic {
 
         if (/забанить /i.test(msg.text) && ADMIN === userName) {
           const banUser = msg.text.split(' ')[1].trim()
-          await userCollection.updateOne({username: banUser}, { $set: { "banned": true } })
+          await userCollection.updateOne({ username: banUser }, { $set: { 'banned': true } })
           await this.bot.sendMessage(chatId, `Пользователь ${banUser} забанен`)
         }
         if (/разбанить /i.test(msg.text) && ADMIN === userName) {
           const banUser = msg.text.split(' ')[1].trim()
-          await userCollection.updateOne({username: banUser}, { $set: { "banned": false } })
+          await userCollection.updateOne({ username: banUser }, { $set: { 'banned': false } })
           await this.bot.sendMessage(chatId, `Пользователь ${banUser} разбанен`)
         }
 
@@ -502,24 +493,68 @@ export default class BotLogic {
     }
   }
 
-  async refreshRating () {
+  async ratingCursor () {
+    const result = []
     const cursor = await userCollection.find({ rating: { $gt: 0 } })
-    const resultUsers = []
-    let i = 1
-
+      .sort({
+        rating: -1,
+        installPoints: -1,
+        takePoints: -1,
+      })
     for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
-      resultUsers.push(data)
+      result.push(data)
     }
-    resultUsers.sort((a, b) => a.rating > b.rating ? -1 : 1)
-    for (const user of resultUsers) {
-      if (user.position !== i) {
+    return result
+  }
+
+  async refreshRating (oldCursor, newCursor) {
+    const newMap = {}
+
+    // Создаем мапу из нового массива
+    newCursor.forEach((user, index) => {
+      newMap[user._id] = { index, rating: user.rating }
+    })
+
+    const updates = []
+
+    // Сравниваем и обновляем данные
+    // Сравниваем и обновляем данные
+    oldCursor.forEach((user, index) => {
+      const newUser = newMap[user._id]
+
+      if (newUser) {
+        let updated = false
+        let positionChanged = false
+
+        // Обновляем позицию, если она изменилась
+        if (newUser.index !== index) {
+          user.position = newUser.index + 1  // Позиция начинается с 1
+          user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
+          positionChanged = true
+          updated = true
+        }
+
+        // Обновляем рейтинг, если он изменился
+        if (user.rating !== newUser.rating) {
+          user.rating = newUser.rating
+          updated = true
+        }
+
+        if (updated) {
+          updates.push(user)
+        }
+      }
+    })
+
+    if (updates.length > 0) {
+      for (let user of updates) {
         await userCollection.updateOne({ id: user.id }, {
           $set: {
-            position: i,
-            positionTime: new Date().getTime(),
-          } }, {})
+            position: user.position,
+            positionTime: user.positionTime,
+          }
+        }, {})
       }
-      i++
     }
   }
 
@@ -532,7 +567,7 @@ export default class BotLogic {
       if (step === 4 && photo) {
         const text = install
           ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл'
-          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating,'балл')}`
+          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
         await this.bot.sendMessage(chatId, text)
         rating = pointField.rating
       } else {
@@ -540,8 +575,8 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + 1}`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + rating}`
 
       const textForChanel = install
         ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +${rating}`
@@ -590,7 +625,7 @@ export default class BotLogic {
         }
 
         if (msg.from.id) {
-          await this.refreshRating()
+          const oldCursor = await this.ratingCursor()
           await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
               rating: rating,
@@ -598,6 +633,8 @@ export default class BotLogic {
               takePoints: !install ? 1 : 0
             }
           })
+          const newCursor = await this.ratingCursor()
+          await this.refreshRating(oldCursor, newCursor)
         }
 
         if (install) {
