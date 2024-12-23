@@ -336,6 +336,7 @@ export default class BotLogic {
             })
             await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
           }
+          await this.bot.sendMessage(chatId, 'Вы уже зарегистрированы')
         }
 
       }
@@ -556,16 +557,8 @@ export default class BotLogic {
           })
         }
 
-        if (msg.from.username) {
-          await userCollection.updateOne({ username: msg.from.username }, {
-            $inc: {
-              rating: rating,
-              installPoints: install ? 1 : 0,
-              takePoints: !install ? 1 : 0
-            }
-          })
-        } else if (msg.from.first_name) {
-          await userCollection.updateOne({ firstName: msg.from.first_name }, {
+        if (msg.from.id) {
+          await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
               rating: rating,
               installPoints: install ? 1 : 0,
