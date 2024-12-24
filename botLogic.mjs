@@ -553,6 +553,10 @@ export default class BotLogic {
     })
 
     if (updates.length > 0) {
+
+      const newLeadUser = updates[0].username ? `@${updates[0].username}` : updates[0].first_name
+      await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${updates[0].position} месте 🏆`, { disable_notification: true })
+
       for (let user of updates) {
         await userCollection.updateOne({ id: user.id }, {
           $set: {
