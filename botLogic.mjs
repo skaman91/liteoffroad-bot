@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api'
 import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
+
 const client = new MongoClient(MONGO_URL)
 await client.connect()
 console.log('Connected successfully to db')
@@ -187,31 +188,39 @@ export default class BotLogic {
         }
 
         if (/^\/results$/i.test(msg.text)) {
-          const resultUsers = await this.ratingCursor()
-          for (let i = 0; i <= 15; i++) {
-            const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
-            const date = new Date(resultUsers[i].positionTime)
-            const now = new Date()
-            const diffInMs = now - date
-            const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
-            const hoursDiff = Math.floor(diffInMs / (1000 * 60 * 60))
-            const minutesDiff = Math.floor(diffInMs / (1000 * 60))
-            const ratingText = daysDiff
-              ? `На ${i + 1} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-              : hoursDiff
-                ? `На ${i + 1} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-                : `На ${i + 1} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-            if (resultUsers[i].username) {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
-                parse_mode: 'HTML',
-                disable_notification: true
-              })
-            } else {
-              await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
-                parse_mode: 'HTML',
-                disable_notification: true
-              })
+          try {
+            const resultUsers = await this.ratingCursor()
+            if (!resultUsers.length) {
+              await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
+              return
             }
+            for (let i = 0; i < resultUsers.length; i++) {
+              const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
+              const date = new Date(resultUsers[i].positionTime)
+              const now = new Date()
+              const diffInMs = now - date
+              const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+              const hoursDiff = Math.floor(diffInMs / (1000 * 60 * 60))
+              const minutesDiff = Math.floor(diffInMs / (1000 * 60))
+              const ratingText = daysDiff
+                ? `На ${i + 1} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                : hoursDiff
+                  ? `На ${i + 1} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                  : `На ${i + 1} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+              if (resultUsers[i].username) {
+                await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
+                  parse_mode: 'HTML',
+                  disable_notification: true
+                })
+              } else {
+                await this.bot.sendMessage(chatId, `${i + 1} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
+                  parse_mode: 'HTML',
+                  disable_notification: true
+                })
+              }
+            }
+          } catch (e) {
+            console.error('Failed results', e.message)
           }
         }
 
@@ -514,6 +523,8 @@ export default class BotLogic {
   }
 
   async refreshRating (oldCursor, newCursor) {
+    console.log('oldCursor', oldCursor)
+    console.log('newCursor', newCursor)
     const newMap = {}
 
     // Создаем мапу из нового массива
@@ -523,37 +534,44 @@ export default class BotLogic {
 
     const updates = []
 
-    // Сравниваем и обновляем данные
-    // Сравниваем и обновляем данные
-    oldCursor.forEach((user, index) => {
-      const newUser = newMap[user._id]
+    // Если oldCursor пустой - добавляем всех как новых
+    if (oldCursor.length === 0) {
+      newCursor.forEach((user, index) => {
+        user.position = index + 1       // Устанавливаем позицию
+        user.positionTime = new Date()  // Устанавливаем текущее время для новых пользователей
+        updates.push(user)
+      })
+    } else {
+      // Сравниваем и обновляем данные
+      oldCursor.forEach((user, index) => {
+        const newUser = newMap[user._id]
 
-      if (newUser) {
-        let updated = false
-        let positionChanged = false
+        if (newUser) {
+          let updated = false
+          let positionChanged = false
 
-        // Обновляем позицию, если она изменилась
-        if (newUser.index !== index) {
-          user.position = newUser.index + 1  // Позиция начинается с 1
-          user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
-          positionChanged = true
-          updated = true
+          // Обновляем позицию, если она изменилась
+          if (newUser.index !== index) {
+            user.position = newUser.index + 1  // Позиция начинается с 1
+            user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
+            positionChanged = true
+            updated = true
+          }
+
+          // Обновляем рейтинг, если он изменился
+          if (user.rating !== newUser.rating) {
+            user.rating = newUser.rating
+            updated = true
+          }
+
+          if (updated) {
+            updates.push(user)
+          }
         }
-
-        // Обновляем рейтинг, если он изменился
-        if (user.rating !== newUser.rating) {
-          user.rating = newUser.rating
-          updated = true
-        }
-
-        if (updated) {
-          updates.push(user)
-        }
-      }
-    })
-
+      })
+    }
+    console.log('updates', updates)
     if (updates.length > 0) {
-
       const newLeadUser = updates[0].username ? `@${updates[0].username}` : updates[0].first_name
       await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${updates[0].position} месте 🏆`, { disable_notification: true })
 
@@ -638,7 +656,7 @@ export default class BotLogic {
           const oldCursor = await this.ratingCursor()
           await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
-              rating: rating,
+              rating: install ? 2 : rating,
               installPoints: install ? 1 : 0,
               takePoints: !install ? 1 : 0
             }
