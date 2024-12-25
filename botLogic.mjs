@@ -76,6 +76,11 @@ export default class BotLogic {
             }
             const rating = point.rating
             const comment = point.comment
+
+            if (comment === 'точку украли') {
+              continue
+            }
+
             const coordinates = point.coordinates
             const first = coordinates?.split(',')[0].trim()
             const second = coordinates?.split(',')[1].trim()
