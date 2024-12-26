@@ -205,8 +205,8 @@ export default class BotLogic {
               const now = new Date()
               const diffInMs = now - date
               const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
-              const hoursDiff = Math.floor(diffInMs / (1000 * 60 * 60))
-              const minutesDiff = Math.floor(diffInMs / (1000 * 60))
+              const hoursDiff = Math.floor((diffInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+              const minutesDiff = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60))
               const ratingText = daysDiff
                 ? `На ${i + 1} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                 : hoursDiff
@@ -543,7 +543,7 @@ export default class BotLogic {
     if (oldCursor.length === 0) {
       newCursor.forEach((user, index) => {
         user.position = index + 1       // Устанавливаем позицию
-        user.positionTime = new Date()  // Устанавливаем текущее время для новых пользователей
+        user.positionTime = new Date().getTime()  // Устанавливаем текущее время для новых пользователей
         updates.push(user)
       })
     } else {
