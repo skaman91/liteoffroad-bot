@@ -584,14 +584,14 @@ export default class BotLogic {
         }
       }
 
-      // for (let user of updates) {
-      //   await userCollection.updateOne({ id: user.id }, {
-      //     $set: {
-      //       position: user.position,
-      //       positionTime: user.positionTime,
-      //     }
-      //   }, {})
-      // }
+      for (let user of updates) {
+        await userCollection.updateOne({ id: user.id }, {
+          $set: {
+            position: user.position,
+            positionTime: user.positionTime,
+          }
+        }, {})
+      }
     }
   }
 
