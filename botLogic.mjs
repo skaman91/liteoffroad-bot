@@ -528,8 +528,8 @@ export default class BotLogic {
   }
 
   async refreshRating (oldCursor, newCursor) {
-    console.log('oldCursor', oldCursor)
-    console.log('newCursor', newCursor)
+    // console.log('oldCursor', oldCursor)
+    // console.log('newCursor', newCursor)
     const newMap = {}
 
     // Создаем мапу из нового массива
@@ -559,7 +559,7 @@ export default class BotLogic {
           if (newUser.index !== index) {
             user.position = newUser.index + 1  // Позиция начинается с 1
             user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
-            positionChanged = true
+            user.positionChanged = true
             updated = true
           }
 
@@ -575,19 +575,23 @@ export default class BotLogic {
         }
       })
     }
-    console.log('updates', updates)
+    // console.log('updates', updates)
     if (updates.length > 0) {
-      const newLeadUser = updates[0].username ? `@${updates[0].username}` : updates[0].first_name
-      await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${updates[0].position} месте 🏆`, { disable_notification: true })
-
-      for (let user of updates) {
-        await userCollection.updateOne({ id: user.id }, {
-          $set: {
-            position: user.position,
-            positionTime: user.positionTime,
-          }
-        }, {})
+      for (const update of updates) {
+        if (update.positionChanged) {
+          const newLeadUser = update.username ? `@${update.username}` : update.first_name
+          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, { disable_notification: true })
+        }
       }
+
+      // for (let user of updates) {
+      //   await userCollection.updateOne({ id: user.id }, {
+      //     $set: {
+      //       position: user.position,
+      //       positionTime: user.positionTime,
+      //     }
+      //   }, {})
+      // }
     }
   }
 
