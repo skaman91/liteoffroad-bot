@@ -550,6 +550,11 @@ export default class BotLogic {
       })
     } else {
       // Сравниваем и обновляем данные
+      const oldMap = {}
+      oldCursor.forEach(user => {
+        oldMap[user._id] = user
+      })
+
       oldCursor.forEach((user, index) => {
         const newUser = newMap[user._id]
 
@@ -576,7 +581,18 @@ export default class BotLogic {
           }
         }
       })
+
+      // Добавляем новых пользователей, которых нет в oldCursor
+      newCursor.forEach((user, index) => {
+        if (!oldMap[user._id]) {
+          user.position = index + 1
+          user.positionTime = new Date().getTime()
+          user.positionChanged = true
+          updates.push(user)
+        }
+      })
     }
+
     // console.log('updates', updates)
     if (updates.length > 0) {
       for (const update of updates) {
@@ -592,7 +608,7 @@ export default class BotLogic {
             position: user.position,
             positionTime: user.positionTime,
           }
-        }, {})
+        }, { upsert: true })  // Добавляем upsert для новых пользователей
       }
     }
   }
