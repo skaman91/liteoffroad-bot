@@ -200,7 +200,7 @@ export default class BotLogic {
               return
             }
             for (let i = 0; i < resultUsers.length; i++) {
-              const username = resultUsers[i].username ? `@${resultUsers[i].username}` : resultUsers[i].firstName
+              const username = resultUsers[i].username ? `@${resultUsers[i].username}` : `<a href="tg://user?id=${resultUsers[i].id}">${resultUsers[i].firstName}</a>`
               const date = new Date(resultUsers[i].positionTime)
               const now = new Date()
               const diffInMs = now - date
