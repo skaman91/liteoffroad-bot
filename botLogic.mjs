@@ -518,8 +518,8 @@ export default class BotLogic {
     const result = []
     const cursor = await userCollection.find({ rating: { $gt: 0 } })
       .sort({
-        position: 1,
         rating: -1,
+        position: 1,
         installPoints: -1,
         takePoints: -1
       })
@@ -554,6 +554,9 @@ export default class BotLogic {
       oldCursor.forEach(user => {
         oldMap[user._id] = user
       })
+      //
+      console.log('oldMap', oldMap)
+      console.log('newMap', newMap)
 
       oldCursor.forEach((user, index) => {
         const newUser = newMap[user._id]
@@ -561,7 +564,9 @@ export default class BotLogic {
         if (newUser) {
           let updated = false
           let positionChanged = false
-
+          // console.log('newUser', newUser)
+          // console.log('index', index)
+          // console.log('user', user)
           // Обновляем позицию, если она изменилась
           if (newUser.index !== index) {
             user.position = newUser.index + 1  // Позиция начинается с 1
@@ -593,12 +598,13 @@ export default class BotLogic {
       })
     }
 
-    // console.log('updates', updates)
+    console.log('updates', updates)
     if (updates.length > 0) {
       for (const update of updates) {
         if (update.positionChanged) {
-          const newLeadUser = update.username ? `@${update.username}` : update.first_name
-          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, { disable_notification: true })
+          console.log('update', update)
+          const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
+          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, { disable_notification: true, parse_mode: 'Markdown' })
         }
       }
 
@@ -736,7 +742,7 @@ export default class BotLogic {
     const labels = {
       'балл': ['балл', 'балла', 'баллов'],
       'час': ['час', 'часа', 'часов'],
-      'мин': ['минута', 'минуты', 'минут'],
+      'мин': ['минуту', 'минуты', 'минут'],
       'дней': ['день', 'дня', 'дней']
     }
 
