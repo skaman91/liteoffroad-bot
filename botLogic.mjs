@@ -613,16 +613,19 @@ export default class BotLogic {
 
       console.log('updates', updates)
       if (updates.length > 0) {
+        let message = '🏆Позиции в рейтинге обновились🏆\n\n'
+
         for (const update of updates) {
           if (update.positionChanged) {
             console.log('update', update)
             const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
-            await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, {
-              disable_notification: true,
-              parse_mode: 'Markdown'
-            })
+            message += `${newLeadUser} теперь на ${update.position} месте \n\n`
           }
         }
+        await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
+          disable_notification: true,
+          parse_mode: 'Markdown'
+        })
 
         for (let user of updates) {
           await userCollection.updateOne({ id: user.id }, {
