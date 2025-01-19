@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN, TESTCHANEL_ID_LITEOFFROAD } from './auth/bot.mjs'
+import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
 import cron from 'node-cron'
@@ -103,12 +103,13 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
-            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(rating, 'балл')}, когда установит эту точку`
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(2, 'балл')}, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
+            const installedDays = `Точка установлена ${this.getDaysSinceInstallation(point.takeTimestamp)} ${this.declOfNum(this.getDaysSinceInstallation(point.takeTimestamp), 'дней')} назад`
             const text = !takers.length
-              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
-              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n--------------------------------------`
+              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n--------------------------------------`
+              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
@@ -614,19 +615,24 @@ export default class BotLogic {
 
       console.log('updates', updates)
       if (updates.length > 0) {
+        let hasPositionChanges = false
         let message = '🏆Позиции в рейтинге обновились🏆\n\n'
 
         for (const update of updates) {
           if (update.positionChanged) {
+            hasPositionChanges = true
             console.log('update', update)
             const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
             message += `${newLeadUser} теперь на ${update.position} месте \n\n`
           }
         }
-        await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
-          disable_notification: true,
-          parse_mode: 'Markdown'
-        })
+
+        if (hasPositionChanges) {
+          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
+            disable_notification: true,
+            parse_mode: 'Markdown'
+          })
+        }
 
         for (let user of updates) {
           await userCollection.updateOne({ id: user.id }, {
@@ -823,6 +829,15 @@ export default class BotLogic {
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
     }
+  }
+
+  // кол-во дней с даты (timestamp)
+  getDaysSinceInstallation (timestamp) {
+    const currentDate = new Date()
+    const installationDate = new Date(timestamp)
+    const diffInMs = currentDate - installationDate
+
+    return Math.floor(diffInMs / (1000 * 60 * 60 * 24))
   }
 
   declOfNum (number, label) {
