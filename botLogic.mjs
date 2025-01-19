@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN } from './auth/bot.mjs'
+import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN, TESTCHANEL_ID_LITEOFFROAD } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
 import cron from 'node-cron'
@@ -409,6 +409,7 @@ export default class BotLogic {
           await collection.updateOne({ point: point }, { $inc: { rating: 1, }, $set: { takers: takers } })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
+          this.defaultData()
           break
         }
         case 'takePoint1': {
