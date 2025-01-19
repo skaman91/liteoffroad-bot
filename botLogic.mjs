@@ -47,7 +47,16 @@ export default class BotLogic {
   async onMessage (msg) {
     try {
       if (msg.text) {
-        console.log(msg)
+        console.log(this.getTime())
+        console.log('msg', msg)
+        console.log('step', step)
+        console.log('point', point)
+        console.log('username', username)
+        console.log('coordinates', coordinates)
+        console.log('comment', comment)
+        console.log('rating', rating)
+        console.log('install', install)
+        console.log('photo', photo)
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
         const userName = `@${msg?.from.username}`
@@ -530,104 +539,108 @@ export default class BotLogic {
   }
 
   async refreshRating (oldCursor, newCursor) {
-    // console.log('oldCursor', oldCursor)
-    // console.log('newCursor', newCursor)
-    const newMap = {}
+    try {
+      const newMap = {}
 
-    // Создаем мапу из нового массива
-    newCursor.forEach((user, index) => {
-      newMap[user._id] = { index, rating: user.rating }
-    })
-
-    const updates = []
-
-    // Если oldCursor пустой - добавляем всех как новых
-    if (oldCursor.length === 0) {
+      // Создаем мапу из нового массива
       newCursor.forEach((user, index) => {
-        user.position = index + 1       // Устанавливаем позицию
-        user.positionTime = new Date().getTime()  // Устанавливаем текущее время для новых пользователей
-        updates.push(user)
+        newMap[user._id] = { index, rating: user.rating }
       })
-    } else {
-      // Сравниваем и обновляем данные
-      const oldMap = {}
-      oldCursor.forEach(user => {
-        oldMap[user._id] = user
-      })
-      //
-      console.log('oldMap', oldMap)
-      console.log('newMap', newMap)
 
-      oldCursor.forEach((user, index) => {
-        const newUser = newMap[user._id]
+      const updates = []
 
-        if (newUser) {
-          let updated = false
-          let positionChanged = false
-          // console.log('newUser', newUser)
-          // console.log('index', index)
-          // console.log('user', user)
-          // Обновляем позицию, если она изменилась
-          if (newUser.index !== index) {
-            user.position = newUser.index + 1  // Позиция начинается с 1
-            user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
+      // Если oldCursor пустой - добавляем всех как новых
+      if (oldCursor.length === 0) {
+        newCursor.forEach((user, index) => {
+          user.position = index + 1       // Устанавливаем позицию
+          user.positionTime = new Date().getTime()  // Устанавливаем текущее время для новых пользователей
+          updates.push(user)
+        })
+      } else {
+        // Сравниваем и обновляем данные
+        const oldMap = {}
+        oldCursor.forEach(user => {
+          oldMap[user._id] = user
+        })
+        //
+        console.log('oldMap', oldMap)
+        console.log('newMap', newMap)
+
+        oldCursor.forEach((user, index) => {
+          const newUser = newMap[user._id]
+
+          if (newUser) {
+            let updated = false
+            // Обновляем позицию, если она изменилась
+            if (newUser.index !== index) {
+              user.position = newUser.index + 1  // Позиция начинается с 1
+              user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
+              user.positionChanged = true
+              updated = true
+            }
+
+            // Обновляем рейтинг, если он изменился
+            if (user.rating !== newUser.rating) {
+              user.rating = newUser.rating
+              updated = true
+            }
+
+            if (updated) {
+              updates.push(user)
+            }
+          }
+        })
+
+        // Добавляем новых пользователей, которых нет в oldCursor
+        newCursor.forEach((user, index) => {
+          if (!oldMap[user._id]) {
+            user.position = index + 1
+            user.positionTime = new Date().getTime()
             user.positionChanged = true
-            updated = true
-          }
-
-          // Обновляем рейтинг, если он изменился
-          if (user.rating !== newUser.rating) {
-            user.rating = newUser.rating
-            updated = true
-          }
-
-          if (updated) {
             updates.push(user)
           }
-        }
-      })
-
-      // Добавляем новых пользователей, которых нет в oldCursor
-      newCursor.forEach((user, index) => {
-        if (!oldMap[user._id]) {
-          user.position = index + 1
-          user.positionTime = new Date().getTime()
-          user.positionChanged = true
-          updates.push(user)
-        }
-      })
-    }
-
-    console.log('updates', updates)
-    if (updates.length > 0) {
-      for (const update of updates) {
-        if (update.positionChanged) {
-          console.log('update', update)
-          const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
-          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, { disable_notification: true, parse_mode: 'Markdown' })
-        }
+        })
       }
 
-      for (let user of updates) {
-        await userCollection.updateOne({ id: user.id }, {
-          $set: {
-            position: user.position,
-            positionTime: user.positionTime,
+      console.log('updates', updates)
+      if (updates.length > 0) {
+        for (const update of updates) {
+          if (update.positionChanged) {
+            console.log('update', update)
+            const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
+            await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, `🏆Позиции в рейтинге обновились, ${newLeadUser} теперь на ${update.position} месте 🏆`, {
+              disable_notification: true,
+              parse_mode: 'Markdown'
+            })
           }
-        }, { upsert: true })  // Добавляем upsert для новых пользователей
+        }
+
+        for (let user of updates) {
+          await userCollection.updateOne({ id: user.id }, {
+            $set: {
+              position: user.position,
+              positionTime: user.positionTime,
+            }
+          }, { upsert: true })  // Добавляем upsert для новых пользователей
+        }
       }
+    } catch (e) {
+      console.error('Failed to refresh rating', e.message)
     }
   }
 
   async onFile (msg) {
     try {
       photo = msg.photo[0].file_id
+      console.log(this.getTime())
+      console.log('msg', msg)
+      console.log('photo', photo)
       const chatId = msg.from.id
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
       const pointField = await collection.findOne({ point: point })
       if (step === 4 && photo) {
         const text = install
-          ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 1 балл'
+          ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 2 балла'
           : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
         await this.bot.sendMessage(chatId, text)
         rating = pointField.rating
@@ -636,11 +649,11 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + 1}`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 1}\nСообщение продублировано в основной канал @liteoffroad`
+        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + rating}\nСообщение продублировано в основной канал @liteoffroad`
 
       const textForChanel = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +${rating}`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +2`
         : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${rating}`
 
       await this.bot.sendPhoto(chatId, photo, {
@@ -724,8 +737,10 @@ export default class BotLogic {
         } else {
           this.defaultData()
         }
+        this.defaultData()
       } else {
         await this.bot.sendMessage(chatId, 'Такая точка не найдена')
+        this.defaultData()
       }
     } catch (e) {
       console.log('Failed onFile', e.message)
@@ -736,6 +751,21 @@ export default class BotLogic {
     const timeout = maxDelay ? ~~((minDelay + (maxDelay - minDelay) * Math.random())) : minDelay
 
     return new Promise(resolve => setTimeout(resolve, timeout))
+  }
+
+  // Получение текущей даты и времени
+  getTime () {
+    const currentTime = new Date()
+    currentTime.setHours(currentTime.getHours() + 3)
+
+    const day = String(currentTime.getDate()).padStart(2, '0')
+    const month = String(currentTime.getMonth() + 1).padStart(2, '0')
+    const year = currentTime.getFullYear()
+    const hours = String(currentTime.getHours()).padStart(2, '0')
+    const minutes = String(currentTime.getMinutes()).padStart(2, '0')
+    const seconds = String(currentTime.getSeconds()).padStart(2, '0')
+
+    return `${day}.${month}.${year} - ${hours}:${minutes}:${seconds}`
   }
 
   declOfNum (number, label) {
