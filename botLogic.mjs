@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api'
 import { MONGO_URL, CHANGE_ID_LITEOFFROAD, ADMIN } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
+import cron from 'node-cron'
 
 const client = new MongoClient(MONGO_URL)
 await client.connect()
@@ -37,6 +38,12 @@ export default class BotLogic {
       this.bot.on('channel_post', msg => this.onChannelPost(msg))
       this.bot.on('photo', msg => this.onFile(msg))
       this.bot.on('callback_query', msg => this.onCallback(msg))
+
+      // Планируем задачу на каждый день в 15:00
+      cron.schedule('0 15 * * *', () => {
+        console.log(`[${new Date().toISOString()}] Запуск обновления рейтингов точек...`)
+        this.updatePointsRating().then(() => console.log(`[${new Date().toISOString()}] Обновление завершено.`))
+      })
     }
   }
 
@@ -320,6 +327,7 @@ export default class BotLogic {
               installed: profile.installed,
               rating: profile.rating,
               takeTimestamp: profile.takeTimestamp,
+              updateTimestamp: profile.updateTimestamp
             }
           })
           // todo Сделать коррекцию рейтинга при переносе
@@ -385,7 +393,8 @@ export default class BotLogic {
               photo: photo,
               installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
               rating: 1,
-              takeTimestamp: new Date().getTime()
+              takeTimestamp: new Date().getTime(),
+              updateTimestamp: new Date().getTime()
             }
           })
           await this.delay(500)
@@ -681,7 +690,8 @@ export default class BotLogic {
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
-            takeTimestamp: new Date().getTime()
+            takeTimestamp: new Date().getTime(),
+            updateTimestamp: new Date().getTime()
           })
         } else {
           await historyCollection.insertOne({
@@ -694,7 +704,8 @@ export default class BotLogic {
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
-            takeTimestamp: new Date().getTime()
+            takeTimestamp: new Date().getTime(),
+            updateTimestamp: new Date().getTime()
           })
         }
 
@@ -722,7 +733,8 @@ export default class BotLogic {
               photo: photo,
               rating: 1,
               takers: [],
-              takeTimestamp: new Date().getTime()
+              takeTimestamp: new Date().getTime(),
+              updateTimestamp: new Date().getTime()
             }
           })
         }
@@ -737,7 +749,6 @@ export default class BotLogic {
         } else {
           this.defaultData()
         }
-        this.defaultData()
       } else {
         await this.bot.sendMessage(chatId, 'Такая точка не найдена')
         this.defaultData()
@@ -766,6 +777,48 @@ export default class BotLogic {
     const seconds = String(currentTime.getSeconds()).padStart(2, '0')
 
     return `${day}.${month}.${year} - ${hours}:${minutes}:${seconds}`
+  }
+
+  // Обновляем точки, которые не переставили в течение недели
+  async updatePointsRating() {
+    try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      const oneWeekAgoTimestamp = oneWeekAgo.getTime()
+      console.log('oneWeekAgoTimestamp', oneWeekAgoTimestamp)
+
+      const filter = {
+        updateTimestamp: { $lte: oneWeekAgoTimestamp },
+        install: true,
+        rating: { $lte: 10 }
+      }
+
+      const pointsLastWeekAgo = await collection.find(filter).toArray()
+
+      if (pointsLastWeekAgo.length === 0) {
+        console.log('Нет точек для обновления')
+        return
+      }
+
+      const result = await collection.updateMany(
+        { updateTimestamp: { $lte: oneWeekAgoTimestamp } }, // Условие: lastUpdated старше одной недели
+        {
+          $inc: { rating: 1 },
+          $set: { updateTimestamp: new Date().getTime() }
+        }
+      )
+
+      let message = '📣Автоматически обновлен рейтинг для следующих точек:📣\n\n'
+
+      pointsLastWeekAgo.forEach((point) => {
+        message += `${point.point}: Новый рейтинг: ${point.rating + 1}\n`
+      })
+
+      await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message)
+      console.log(`[${new Date().toISOString()}] Обновлено точек: `)
+    } catch (e) {
+      console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
+    }
   }
 
   declOfNum (number, label) {
