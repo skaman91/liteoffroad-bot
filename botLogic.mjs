@@ -785,9 +785,9 @@ export default class BotLogic {
   }
 
   // Обновляем точки, которые не переставили в течение недели
-  async updatePointsRating() {
+  async updatePointsRating () {
     try {
-      const oneWeekAgo = new Date();
+      const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       const oneWeekAgoTimestamp = oneWeekAgo.getTime()
       console.log('oneWeekAgoTimestamp', oneWeekAgoTimestamp)
