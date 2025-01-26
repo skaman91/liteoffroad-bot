@@ -216,6 +216,7 @@ export default class BotLogic {
               await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
               return
             }
+            let message = '<b>Общие результаты игры</b>'
             for (let i = 0; i < resultUsers.length; i++) {
               const username = resultUsers[i].username ? `@${resultUsers[i].username}` : `<a href="tg://user?id=${resultUsers[i].id}">${resultUsers[i].firstName}</a>`
               const date = new Date(resultUsers[i].positionTime)
@@ -229,19 +230,18 @@ export default class BotLogic {
                 : hoursDiff
                   ? `На ${resultUsers[i].position} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                   : `На ${resultUsers[i].position} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+              message += `\n--------------------------------------\n`
 
               if (resultUsers[i].username) {
-                await this.bot.sendMessage(chatId, `${resultUsers[i]?.position} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
-                  parse_mode: 'HTML',
-                  disable_notification: true
-                })
+                message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
               } else {
-                await this.bot.sendMessage(chatId, `${resultUsers[i]?.position} Место ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`, {
-                  parse_mode: 'HTML',
-                  disable_notification: true
-                })
+                message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
               }
             }
+            await this.bot.sendMessage(chatId, message, {
+              parse_mode: 'HTML',
+              disable_notification: true
+            })
           } catch (e) {
             console.error('Failed results', e.message)
           }
@@ -337,6 +337,8 @@ export default class BotLogic {
 
         if (/правка/i.test(msg.text) && ADMIN === userName) {
           // выполнить какое нибудь действие админом
+          const text = `<a href="tg://user?id=477789928">user</a>`
+          await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
         }
 
         if (/забанить /i.test(msg.text) && ADMIN === userName) {
@@ -573,9 +575,6 @@ export default class BotLogic {
         oldCursor.forEach(user => {
           oldMap[user._id] = user
         })
-        //
-        console.log('oldMap', oldMap)
-        console.log('newMap', newMap)
 
         oldCursor.forEach((user, index) => {
           const newUser = newMap[user._id]
@@ -613,7 +612,6 @@ export default class BotLogic {
         })
       }
 
-      console.log('updates', updates)
       if (updates.length > 0) {
         let hasPositionChanges = false
         let message = '🏆Позиции в рейтинге обновились🏆\n\n'
@@ -624,6 +622,12 @@ export default class BotLogic {
             console.log('update', update)
             const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
             message += `${newLeadUser} теперь на ${update.position} месте \n\n`
+            await userCollection.updateOne({ id: update.id }, {
+              $set: {
+                position: update.position,
+                positionTime: update.positionTime,
+              }
+            })
           }
         }
 
@@ -632,15 +636,6 @@ export default class BotLogic {
             disable_notification: true,
             parse_mode: 'Markdown'
           })
-        }
-
-        for (let user of updates) {
-          await userCollection.updateOne({ id: user.id }, {
-            $set: {
-              position: user.position,
-              positionTime: user.positionTime,
-            }
-          }, { upsert: true })  // Добавляем upsert для новых пользователей
         }
       }
     } catch (e) {
@@ -672,7 +667,7 @@ export default class BotLogic {
         : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + rating}\nСообщение продублировано в основной канал @liteoffroad`
 
       const textForChanel = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +2`
+        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/">📍Карта с точками📍</a>`
         : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${rating}`
 
       await this.bot.sendPhoto(chatId, photo, {
@@ -810,8 +805,8 @@ export default class BotLogic {
         return
       }
 
-      const result = await collection.updateMany(
-        { updateTimestamp: { $lte: oneWeekAgoTimestamp } }, // Условие: lastUpdated старше одной недели
+      await collection.updateMany(
+        { updateTimestamp: { $lte: oneWeekAgoTimestamp } },
         {
           $inc: { rating: 1 },
           $set: { updateTimestamp: new Date().getTime() }
