@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL } from './auth/bot.mjs'
+import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL, TESTCHANEL_ID_LITEOFFROAD } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules } from './const.js'
 import cron from 'node-cron'
@@ -795,7 +795,9 @@ export default class BotLogic {
       const filter = {
         updateTimestamp: { $lte: oneWeekAgoTimestamp },
         install: true,
-        rating: { $lte: 10 }
+        rating: { $lte: 10 },
+        comment: { $ne: 'точку украли' },
+        point: { $ne: 'Точка 88'}
       }
 
       const pointsLastWeekAgo = await collection.find(filter).toArray()
@@ -806,10 +808,10 @@ export default class BotLogic {
       }
 
       await collection.updateMany(
-        { updateTimestamp: { $lte: oneWeekAgoTimestamp } },
+        filter,
         {
           $inc: { rating: 1 },
-          $set: { updateTimestamp: new Date().getTime() }
+          $set: { updateTimestamp: new Date().getTime() },
         }
       )
 
@@ -820,7 +822,7 @@ export default class BotLogic {
       })
 
       await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message)
-      console.log(`[${new Date().toISOString()}] Обновлено точек: `)
+      console.log(`[${new Date().toISOString()}] Обновлено точек: ${pointsLastWeekAgo.length}`)
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
     }
