@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api'
 import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL, TESTCHANEL_ID_LITEOFFROAD } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
-import { commands, rules } from './const.js'
+import { commands, rules1, rules2 } from './const.js'
 import cron from 'node-cron'
 
 const client = new MongoClient(MONGO_URL)
@@ -40,7 +40,7 @@ export default class BotLogic {
       this.bot.on('callback_query', msg => this.onCallback(msg))
 
       // Планируем задачу на каждый день в 15:00
-      cron.schedule('0 15 * * *', () => {
+      cron.schedule('0 15 * * *', () => { //'0 15 * * *'
         console.log(`[${new Date().toISOString()}] Запуск обновления рейтингов точек...`)
         this.updatePointsRating().then(() => console.log(`[${new Date().toISOString()}] Обновление завершено.`))
       })
@@ -300,7 +300,12 @@ export default class BotLogic {
         }
 
         if (msg.text === '/rules') {
-          await this.bot.sendMessage(chatId, rules, {
+          await this.bot.sendMessage(chatId, rules1, {
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
+          await this.bot.sendMessage(chatId, rules2, {
             parse_mode: 'HTML',
             disable_notification: true,
             disable_web_page_preview: true
@@ -326,6 +331,7 @@ export default class BotLogic {
               comment: profile.comment,
               photo: profile.photo,
               installed: profile.installed,
+              installedId: profile.installedId,
               rating: profile.rating,
               takeTimestamp: profile.takeTimestamp,
               updateTimestamp: profile.updateTimestamp
@@ -395,6 +401,7 @@ export default class BotLogic {
               comment: comment,
               photo: photo,
               installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
+              installedId: msg.from.id,
               rating: 1,
               takeTimestamp: new Date().getTime(),
               updateTimestamp: new Date().getTime()
@@ -632,6 +639,7 @@ export default class BotLogic {
         }
 
         if (hasPositionChanges) {
+          console.log('Текст refresh rating', message)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
             disable_notification: true,
             parse_mode: 'Markdown'
@@ -692,6 +700,7 @@ export default class BotLogic {
             coordinates: pointField.coordinates,
             install: true,
             installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
+            installedId: msg.from.id,
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
@@ -706,6 +715,7 @@ export default class BotLogic {
             coordinates: pointField.coordinates,
             install: false,
             installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
+            installedId: msg.from.id,
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
@@ -733,6 +743,7 @@ export default class BotLogic {
               id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
               install: install,
               installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
+              installedId: msg.from.id,
               coordinates: install ? coordinates : ',',
               comment: comment,
               photo: photo,
@@ -790,6 +801,7 @@ export default class BotLogic {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       const oneWeekAgoTimestamp = oneWeekAgo.getTime()
+      const oldCursor = await this.ratingCursor()
       console.log('oneWeekAgoTimestamp', oneWeekAgoTimestamp)
 
       const filter = {
@@ -797,7 +809,7 @@ export default class BotLogic {
         install: true,
         rating: { $lte: 10 },
         comment: { $ne: 'точку украли' },
-        point: { $ne: 'Точка 88'}
+        point: { $ne: 'Точка 88' }
       }
 
       const pointsLastWeekAgo = await collection.find(filter).toArray()
@@ -817,12 +829,27 @@ export default class BotLogic {
 
       let message = '📣Автоматически обновлен рейтинг для следующих точек:📣\n\n'
 
-      pointsLastWeekAgo.forEach((point) => {
+      for (const point of pointsLastWeekAgo) {
         message += `${point.point}: Новый рейтинг: ${point.rating + 1}\n`
-      })
-
+        const user = await userCollection.findOne({ id: point.installedId })
+        if (user) {
+          console.log('user', user)
+          if (!user.banned) {
+            await userCollection.updateOne({ id: point.installedId },
+              {
+                $inc: { rating: 1 }
+              }
+            )
+            message += `Точку устанавливал ${point.installed}, ему добавлен 1 балл\n`
+          }
+        }
+      }
+      console.log('Отправляемый текст:', message)
       await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message)
       console.log(`[${new Date().toISOString()}] Обновлено точек: ${pointsLastWeekAgo.length}`)
+
+      const newCursor = await this.ratingCursor()
+      await this.refreshRating(oldCursor, newCursor)
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
     }
