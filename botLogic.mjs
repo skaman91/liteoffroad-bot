@@ -12,14 +12,7 @@ const collection = db.collection('points')
 const historyCollection = db.collection('historyPoints')
 const userCollection = db.collection('users')
 
-let step = 0
-let point = ''
-let username = ''
-let coordinates = ''
-let comment = ''
-let rating = 0
-let install = false
-let photo = ''
+const usersMap = {}
 
 export default class BotLogic {
   constructor ({
@@ -55,16 +48,11 @@ export default class BotLogic {
     try {
       if (msg.text) {
         console.log(this.getTime())
-        console.log('msg', msg)
-        console.log('step', step)
-        console.log('point', point)
-        console.log('username', username)
-        console.log('coordinates', coordinates)
-        console.log('comment', comment)
-        console.log('rating', rating)
-        console.log('install', install)
-        console.log('photo', photo)
+        console.log('userMap', usersMap)
         const chatId = msg.chat?.id
+        if (!usersMap[chatId]) {
+          usersMap[chatId] = { step: 0, point: "", username: '', coordinates: '', comment: '', rating: 0, install: false, photo: '' }
+        }
         const user = msg?.from.first_name
         const userName = `@${msg?.from.username}`
         const profile = await userCollection.findOne({ id: msg.from.id })
@@ -142,14 +130,14 @@ export default class BotLogic {
         }
 
         if (/(\/take|\/install)/i.test(msg.text)) {
-          this.defaultData()
+          this.defaultData(chatId)
           const profile = await userCollection.findOne({ id: msg.from.id })
           if (!profile) {
             await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
             return
           }
-          install = /\/install/i.test(msg.text)
-          if (!install) {
+          usersMap[chatId].install = /\/install/i.test(msg.text)
+          if (!usersMap[chatId].install) {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
           } else {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Установку точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
@@ -168,34 +156,36 @@ export default class BotLogic {
               ]
             }
           })
-          step = 1
+          usersMap[chatId].step = 1
           return
         }
 
-        if (step === 2 && point && !coordinates) {
+        if (usersMap[chatId].step === 2 && usersMap[chatId].point && !usersMap[chatId].coordinates) {
           const coordinatesField = /^(\d\d\.\d{4,}, \d\d\.\d{4,})$/i.test(msg.text)
-          if (coordinatesField && !coordinates && install) {
-            coordinates = msg.text
-            step = 3
+          if (coordinatesField && !usersMap[chatId].coordinates && usersMap[chatId].install) {
+            usersMap[chatId].coordinates = msg.text
+            usersMap[chatId].step = 3
             await this.bot.sendMessage(chatId, 'Напиши краткий комментарий к точке, например уровень сложности, рекомендации или что-то такое.')
             return
-          } else if (!coordinatesField && !coordinates && install) {
+          } else if (!coordinatesField && !usersMap[chatId].coordinates && usersMap[chatId].install) {
             await this.bot.sendMessage(chatId, 'Формат координат неверный, нужно что бы они были в таком формате "60.342349, 30.017123" (без ковычек, просто цифры с запятой посередине). Если хочешь отменить оформление взятия точки, то напиши "отменить"')
 
             return
           }
         }
 
-        if (point && coordinates && step === 3) {
-          if (!comment) {
-            comment = msg.text
-            step = 4
+        if (usersMap[chatId].point && usersMap[chatId].coordinates && usersMap[chatId].step === 3) {
+          if (!usersMap[chatId].comment) {
+            usersMap[chatId].comment = msg.text
+            usersMap[chatId].step = 4
             await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию установки точки')
           }
         }
 
         if (/^\/profile$/i.test(msg.text)) {
           const id = msg.from.id
+          const chatId = msg.from.id
+          this.defaultData(chatId)
           const profile = await userCollection.findOne({ id: id })
           if (profile) {
             const username = msg.from.username
@@ -211,6 +201,8 @@ export default class BotLogic {
 
         if (/^\/results$/i.test(msg.text)) {
           try {
+            const chatId = msg.from.id
+            this.defaultData(chatId)
             const resultUsers = await this.ratingCursor()
             if (!resultUsers.length) {
               await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
@@ -249,6 +241,8 @@ export default class BotLogic {
 
         if (/^\/archive$/i.test(msg.text)) {
           try {
+            const chatId = msg.from.id
+            this.defaultData(chatId)
             await this.bot.sendMessage(chatId, 'Раздел в разработке')
             const cursor = await historyCollection.find().limit(30)
             let i = 0
@@ -300,6 +294,8 @@ export default class BotLogic {
         }
 
         if (msg.text === '/rules') {
+          const chatId = msg.from.id
+          this.defaultData(chatId)
           await this.bot.sendMessage(chatId, rules1, {
             parse_mode: 'HTML',
             disable_notification: true,
@@ -359,6 +355,8 @@ export default class BotLogic {
         }
 
         if (/^\/start$/i.test(msg.text)) {
+          const chatId = msg.from.id
+          this.defaultData(chatId)
           const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
           await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           const username = msg.from.username
@@ -390,16 +388,17 @@ export default class BotLogic {
 
   async onCallback (msg) {
     try {
+      const chatId = msg.from.id
       switch (msg.data) {
         case 'tookPoints': { // забрал
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          await collection.updateOne({ point: point }, {
+          await collection.updateOne({ point: usersMap[chatId].point }, {
             $set: {
               id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
-              install: install,
-              coordinates: install ? coordinates : ',',
-              comment: comment,
-              photo: photo,
+              install: usersMap[chatId].install,
+              coordinates: usersMap[chatId].install ? usersMap[chatId].coordinates : ',',
+              comment: usersMap[chatId].comment,
+              photo: usersMap[chatId].photo,
               installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
               installedId: msg.from.id,
               rating: 1,
@@ -408,18 +407,18 @@ export default class BotLogic {
             }
           })
           await this.delay(500)
-          this.defaultData()
+          this.defaultData(chatId)
           break
         }
         case 'noTookPoints': { // оставил
-          const isPoint = await collection.findOne({ point: point })
+          const isPoint = await collection.findOne({ point: usersMap[chatId].point })
           const user = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
           const takers = isPoint.takers
           takers.push(user)
-          await collection.updateOne({ point: point }, { $inc: { rating: 1, }, $set: { takers: takers } })
+          await collection.updateOne({ point: usersMap[chatId].point }, { $inc: { rating: 1, }, $set: { takers: takers } })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
-          this.defaultData()
+          this.defaultData(chatId)
           break
         }
         case 'takePoint1': {
@@ -505,41 +504,41 @@ export default class BotLogic {
 
   async takePoint (msg, pointText) {
     const chatId = msg.from.id
-    if (step === 1 && !point && install) {
+    if (usersMap[chatId].step === 1 && !usersMap[chatId].point && usersMap[chatId].install) {
       const pointField = /точка [0-9]+/i.test(pointText)
-      if (pointField && !point) {
-        point = pointText
+      if (pointField && !usersMap[chatId].point) {
+        usersMap[chatId].point = pointText
         const pointInBase = await collection.findOne({ point: pointText })
         if (!pointInBase) {
           await this.bot.sendMessage(chatId, 'Такой точки не существует, возможно вы опечатались')
           return
         }
-        if (install && pointInBase.install) {
+        if (usersMap[chatId].install && pointInBase.install) {
           await this.bot.sendMessage(chatId, '❗Точка уже установлена, ее сперва нужно взять❗')
           return
         }
         await this.bot.sendMessage(chatId, 'Отлично, теперь отправь координаты. Они должны быть в таком формате (без ковычек, просто цифры с запятой посередине) "60.342349, 30.017123"')
-        step = 2
+        usersMap[chatId].step = 2
       }
-    } else if (step === 1 && !install) {
-      point = pointText
+    } else if (usersMap[chatId].step === 1 && !usersMap[chatId].install) {
+      usersMap[chatId].point = pointText
       const pointInBase = await collection.findOne({ point: pointText })
       if (!pointInBase) {
         await this.bot.sendMessage(chatId, '❗Такой точки не существует, возможно вы опечатались❗')
         return
       }
-      if (!install && !pointInBase.install) {
+      if (!usersMap[chatId].install && !pointInBase.install) {
         await this.bot.sendMessage(chatId, '❗Точка уже взята, ее сперва нужно установить❗')
         return
       }
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
 
-      if ((!install && pointInBase.takers.includes(username)) || (!install && pointInBase.installed === username)) {
+      if ((!usersMap[chatId].install && pointInBase.takers.includes(username)) || (!usersMap[chatId].install && pointInBase.installed === username)) {
         await this.bot.sendMessage(chatId, `❗❗❗Вы уже брали эту точку, нельзя брать точки повторно. Вы сможете снова взять эту точку, только если другой участник ее переставит.❗❗❗`)
         return
       }
       await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию взятия точки')
-      step = 4
+      usersMap[chatId].step = 4
     }
   }
 
@@ -653,38 +652,38 @@ export default class BotLogic {
 
   async onFile (msg) {
     try {
-      photo = msg.photo[0].file_id
+      usersMap[chatId].photo = msg.photo[0].file_id
       console.log(this.getTime())
       console.log('msg', msg)
-      console.log('photo', photo)
+      console.log('photo', usersMap[chatId].photo)
       const chatId = msg.from.id
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
-      const pointField = await collection.findOne({ point: point })
-      if (step === 4 && photo) {
-        const text = install
+      const pointField = await collection.findOne({ point: usersMap[chatId].point })
+      if (usersMap[chatId].step === 4 && usersMap[chatId].photo) {
+        const text = usersMap[chatId].install
           ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 2 балла'
           : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
         await this.bot.sendMessage(chatId, text)
-        rating = pointField.rating
+        usersMap[chatId].rating = pointField.rating
       } else {
         return
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
-      const text = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 1}\nСообщение продублировано в основной канал @liteoffroad`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${rating}\nОбщий рейтинг ${profile.rating + rating}\nСообщение продублировано в основной канал @liteoffroad`
+      const text = usersMap[chatId].install
+        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 1}\nСообщение продублировано в основной канал @liteoffroad`
+        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
 
-      const textForChanel = install
-        ? `${point} Установлена!🔥\nКоординаты: <code>${coordinates}</code>\nУстановил: ${username}\n${comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/">📍Карта с точками📍</a>`
-        : `${point} Взята 🔥\n${comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${rating}`
+      const textForChanel = usersMap[chatId].install
+        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/">📍Карта с точками📍</a>`
+        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${usersMap[chatId].rating}`
 
-      await this.bot.sendPhoto(chatId, photo, {
+      await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
         caption: text,
         parse_mode: 'HTML',
         disable_notification: true,
         disable_web_page_preview: true
       })
-      await this.bot.sendPhoto(CHANGE_ID_LITEOFFROAD, photo, {
+      await this.bot.sendPhoto(CHANGE_ID_LITEOFFROAD, usersMap[chatId].photo, {
         caption: textForChanel,
         parse_mode: 'HTML',
         disable_notification: true,
@@ -692,7 +691,7 @@ export default class BotLogic {
       })
 
       if (pointField) {
-        if (install) {
+        if (usersMap[chatId].install) {
           await historyCollection.insertOne({
             id: pointField.id || Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
             point: pointField.point,
@@ -728,25 +727,25 @@ export default class BotLogic {
           const oldCursor = await this.ratingCursor()
           await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
-              rating: install ? 2 : rating,
-              installPoints: install ? 1 : 0,
-              takePoints: !install ? 1 : 0
+              rating: usersMap[chatId].install ? 2 : usersMap[chatId].rating,
+              installPoints: usersMap[chatId].install ? 1 : 0,
+              takePoints: !usersMap[chatId].install ? 1 : 0
             }
           })
           const newCursor = await this.ratingCursor()
           await this.refreshRating(oldCursor, newCursor)
         }
 
-        if (install) {
-          await collection.updateOne({ point: point }, {
+        if (usersMap[chatId].install) {
+          await collection.updateOne({ point: usersMap[chatId].point }, {
             $set: {
               id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
-              install: install,
+              install: usersMap[chatId].install,
               installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
               installedId: msg.from.id,
-              coordinates: install ? coordinates : ',',
-              comment: comment,
-              photo: photo,
+              coordinates: usersMap[chatId].install ? usersMap[chatId].coordinates : ',',
+              comment: usersMap[chatId].comment,
+              photo: usersMap[chatId].photo,
               rating: 1,
               takers: [],
               takeTimestamp: new Date().getTime(),
@@ -754,7 +753,7 @@ export default class BotLogic {
             }
           })
         }
-        if (!install) {
+        if (!usersMap[chatId].install) {
           await this.bot.sendMessage(chatId, `Точка осталась на месте или забрал?`, {
             reply_markup: {
               inline_keyboard: [
@@ -763,11 +762,11 @@ export default class BotLogic {
             }
           })
         } else {
-          this.defaultData()
+          this.defaultData(chatId)
         }
       } else {
         await this.bot.sendMessage(chatId, 'Такая точка не найдена')
-        this.defaultData()
+        this.defaultData(chatId)
       }
     } catch (e) {
       console.log('Failed onFile', e.message)
@@ -883,15 +882,8 @@ export default class BotLogic {
     return map[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]]
   }
 
-  defaultData () {
-    step = 0
-    point = ''
-    username = ''
-    coordinates = ''
-    comment = ''
-    rating = 0
-    install = false
-    photo = ''
+  defaultData (chatId) {
+    usersMap[chatId] = { step: 0, point: "", username: '', coordinates: '', comment: '', rating: 0, install: false, photo: '' }
   }
 
   stop () {
