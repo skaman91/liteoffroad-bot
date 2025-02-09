@@ -48,13 +48,14 @@ export default class BotLogic {
     try {
       if (msg.text) {
         console.log(this.getTime())
-        console.log('userMap', usersMap)
         const chatId = msg.chat?.id
-        if (!usersMap[chatId]) {
-          usersMap[chatId] = { step: 0, point: "", username: '', coordinates: '', comment: '', rating: 0, install: false, photo: '' }
-        }
         const user = msg?.from.first_name
         const userName = `@${msg?.from.username}`
+        if (!usersMap[chatId]) {
+          usersMap[chatId] = { username: userName, firstName: user, step: 0, point: "", coordinates: '', comment: '', rating: 0, install: false, photo: '' }
+        }
+        console.log('userMap', usersMap[chatId])
+        console.log('Сообщение: ', msg.text)
         const profile = await userCollection.findOne({ id: msg.from.id })
 
         if (profile && profile.banned) {
@@ -626,7 +627,7 @@ export default class BotLogic {
           if (update.positionChanged) {
             hasPositionChanges = true
             console.log('update', update)
-            const newLeadUser = update?.username !== null ? `@${update.username}` : `[${update.firstName}](tg://user?id=${update.id})`
+            const newLeadUser = update?.username !== null ? `@${update.username}` : `<a href="tg://user?id=${update.id}">${update.firstName}</a>`
             message += `${newLeadUser} теперь на ${update.position} месте \n\n`
             await userCollection.updateOne({ id: update.id }, {
               $set: {
@@ -641,7 +642,7 @@ export default class BotLogic {
           console.log('Текст refresh rating', message)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
             disable_notification: true,
-            parse_mode: 'Markdown'
+            parse_mode: 'HTML'
           })
         }
       }
@@ -652,11 +653,11 @@ export default class BotLogic {
 
   async onFile (msg) {
     try {
+      const chatId = msg.from.id
       usersMap[chatId].photo = msg.photo[0].file_id
       console.log(this.getTime())
       console.log('msg', msg)
       console.log('photo', usersMap[chatId].photo)
-      const chatId = msg.from.id
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
       const pointField = await collection.findOne({ point: usersMap[chatId].point })
       if (usersMap[chatId].step === 4 && usersMap[chatId].photo) {
@@ -883,7 +884,7 @@ export default class BotLogic {
   }
 
   defaultData (chatId) {
-    usersMap[chatId] = { step: 0, point: "", username: '', coordinates: '', comment: '', rating: 0, install: false, photo: '' }
+    usersMap[chatId] = { step: 0, point: "", coordinates: '', comment: '', rating: 0, install: false, photo: '' }
   }
 
   stop () {
