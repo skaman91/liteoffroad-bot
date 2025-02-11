@@ -1,8 +1,8 @@
 import BotLogic from './botLogic.mjs'
-import { BOT_TOKEN } from './auth/bot.mjs'
+import 'dotenv/config'
 
 const botStart = new BotLogic ({
-  apiToken: BOT_TOKEN
+  apiToken: process.env.BOT_TOKEN
 })
 
 function shutdown () {

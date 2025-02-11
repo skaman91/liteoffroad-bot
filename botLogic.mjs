@@ -1,9 +1,11 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL, TESTCHANEL_ID_LITEOFFROAD, CITIES } from './auth/bot.mjs'
+import 'dotenv/config'
+import { CITIES } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules1, rules2 } from './const.js'
 import cron from 'node-cron'
 
+const MONGO_URL = process.env.MONGO_URL
 const client = new MongoClient(MONGO_URL)
 await client.connect()
 console.log('Connected successfully to db')
@@ -11,6 +13,9 @@ const db = client.db('liteoffroad')
 const collection = db.collection('points')
 const historyCollection = db.collection('historyPoints')
 const userCollection = db.collection('users')
+const ADMIN = process.env.ADMIN
+const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
+const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
 
 const usersMap = {}
 
@@ -582,7 +587,7 @@ export default class BotLogic {
             $set: { takers: takers }
           })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           await this.defaultData(chatId)
           break
         }
@@ -751,7 +756,7 @@ export default class BotLogic {
 
         if (hasPositionChanges) {
           console.log('Текст refresh rating', message)
-          await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message, {
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, message, {
             disable_notification: true,
             parse_mode: 'HTML'
           })
@@ -795,7 +800,7 @@ export default class BotLogic {
         disable_notification: true,
         disable_web_page_preview: true
       })
-      await this.bot.sendPhoto(CHANGE_ID_LITEOFFROAD, usersMap[chatId].photo, {
+      await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
         caption: textForChanel,
         parse_mode: 'HTML',
         disable_notification: true,
@@ -958,7 +963,7 @@ export default class BotLogic {
         }
       }
       console.log('Отправляемый текст:', message)
-      await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, message)
+      await this.bot.sendMessage(CHANEL_LITEOFFROAD, message)
       console.log(`[${new Date().toISOString()}] Обновлено точек: ${pointsLastWeekAgo.length}`)
 
       const newCursor = await this.ratingCursor()
