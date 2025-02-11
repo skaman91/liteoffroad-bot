@@ -386,6 +386,41 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
         }
 
+        if (/Добавить точку/i.test(msg.text) && ADMIN === userName) { // Добавить точку 22 Лайт Санкт-Петербург
+          try {
+            // выполнить какое нибудь действие админом
+            const pointName = `Точка ${msg.text.split(' ')[2].trim()}`
+            const rang = msg.text.split(' ')[3].trim()
+            const city = msg.text.split(' ')[4].trim()
+            const checkPoint = await collection.findOne({point: pointName, city: city})
+            if (!checkPoint) {
+              await collection.insertOne({
+                point: pointName,
+                coordinates: "",
+                comment: "Новая точка, еще не устанавливалась",
+                rating: 1,
+                install: false,
+                installed: "",
+                photo: "",
+                takers: [],
+                id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
+                takeTimestamp: Date.now(),
+                updateTimestamp: Date.now(),
+                rang,
+                installedId: null,
+                city
+              })
+              await this.bot.sendMessage(chatId, `${pointName} Добавлена. \nгород ${city}`, { parse_mode: 'HTML' })
+              return
+            } else {
+              await this.bot.sendMessage(chatId, `Эта точка уже существует`, { parse_mode: 'HTML' })
+              console.log('checkPoint', checkPoint)
+            }
+          } catch (e) {
+            console.error('Ошибка добавления новой точки', e.message)
+          }
+        }
+
         if (/забанить /i.test(msg.text) && ADMIN === userName) {
           const banUser = msg.text.split(' ')[1].trim()
           await userCollection.updateOne({ username: banUser }, { $set: { 'banned': true } })
