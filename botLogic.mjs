@@ -88,7 +88,6 @@ export default class BotLogic {
           const points = []
 
           for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
-            console.log('data', data)
             i++
             points.push(data)
           }
@@ -266,8 +265,10 @@ export default class BotLogic {
           try {
             const chatId = msg.from.id
             await this.defaultData(chatId)
-            await this.bot.sendMessage(chatId, 'Раздел в разработке')
-            const cursor = await historyCollection.find().limit(30)
+            const cursor = await historyCollection
+              .find({ city: usersMap[chatId].city })
+              .sort({ _id: -1 })
+              .limit(20)
             let i = 0
             const points = []
 
@@ -275,7 +276,11 @@ export default class BotLogic {
               i++
               points.push(data)
             }
-            await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 30 архивных точек:</b>`, { parse_mode: 'HTML' })
+            if (points.length) {
+              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 20 архивных точек:</b>`, { parse_mode: 'HTML' })
+            } else {
+              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nНе нашлось архивных точек:</b>`, { parse_mode: 'HTML' })
+            }
             await this.delay(2000)
 
             // Архивные Точки
@@ -352,6 +357,7 @@ export default class BotLogic {
               installed: profile.installed,
               installedId: profile.installedId,
               rating: profile.rating,
+              city: profile.city,
               takeTimestamp: profile.takeTimestamp,
               updateTimestamp: profile.updateTimestamp
             }
@@ -831,6 +837,7 @@ export default class BotLogic {
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
+            city: pointField.city,
             takeTimestamp: new Date().getTime(),
             updateTimestamp: new Date().getTime()
           })
@@ -846,6 +853,7 @@ export default class BotLogic {
             photo: pointField.photo,
             rating: pointField.rating,
             takers: pointField.takers,
+            city: pointField.city,
             takeTimestamp: new Date().getTime(),
             updateTimestamp: new Date().getTime()
           })
