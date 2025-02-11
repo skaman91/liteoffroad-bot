@@ -163,19 +163,33 @@ export default class BotLogic {
           } else {
             await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Установку точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
           }
-          await this.bot.sendMessage(chatId, `Какой номер точки?`, {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '1', callback_data: 'takePoint1' }, { text: '1 южная', callback_data: 'takePoint1Y' }],
-                [{ text: '2 северная', callback_data: 'takePoint2S' }, { text: '2', callback_data: 'takePoint2' }],
-                [{ text: '3', callback_data: 'takePoint3' }, { text: '4', callback_data: 'takePoint4' }],
-                [{ text: '5', callback_data: 'takePoint5' }, { text: '6', callback_data: 'takePoint6' }],
-                [{ text: '7', callback_data: 'takePoint7' }, { text: '8', callback_data: 'takePoint8' }],
-                [{ text: '9', callback_data: 'takePoint9' }, { text: '10', callback_data: 'takePoint10' }],
-                [{ text: '11', callback_data: 'takePoint11' }, { text: '666', callback_data: 'takePoint666' }],
-                [{ text: '88 тестовая', callback_data: 'takePoint88' }]
-              ]
-            }
+          const results = await collection
+            .find({
+              city: usersMap[chatId].city,
+              comment: { $ne: 'точку украли' },
+            })
+            .limit(50)
+            .toArray()
+          console.log('results', results)
+          if (results.length === 0) {
+            return await this.bot.sendMessage(chatId, 'Нет доступных точек для выбора.')
+          }
+
+          const buttons = results
+            .filter(point => point.point)
+            .map(point => {
+              const displayText = point.point.replace(/Точка\s*/i, '').trim()
+              let callbackData = `Точка_${displayText.replace(/\s+/g, '_')}`
+
+              return { text: displayText, callback_data: callbackData }
+            })
+          const inlineKeyboard = []
+          for (let i = 0; i < buttons.length; i += 2) {
+            inlineKeyboard.push(buttons.slice(i, i + 2))
+          }
+
+          await this.bot.sendMessage(chatId, 'Какой номер точки?', {
+            reply_markup: { inline_keyboard: inlineKeyboard }
           })
           usersMap[chatId].step = 1
           return
@@ -444,7 +458,6 @@ export default class BotLogic {
           const userName = usersMap[chatId].username ? `${usersMap[chatId].username}` : `<a href="tg://user?id=${userId}">${usersMap[chatId].firstName}</a>`
 
           if (msg.text) {
-            // Если пользователь отправил текст
             await this.bot.sendMessage(chatId, 'Ваш запрос отправлен в общий канал @liteoffroad!', {
               reply_markup: { remove_keyboard: true }
             })
@@ -455,7 +468,6 @@ export default class BotLogic {
 
           }
 
-          // Убираем пользователя из списка ожидания
           usersMap[chatId].waitingForResponse = false
         }
 
@@ -486,7 +498,7 @@ export default class BotLogic {
     return user ? user.city : 'Не указан'
   }
 
-  async updateUserCity(userId, city) {
+  async updateUserCity (userId, city) {
     console.log('updateUserCity', userId, city)
     await userCollection.updateOne({ id: userId }, {
       $set: {
@@ -498,6 +510,13 @@ export default class BotLogic {
   async onCallback (msg) {
     try {
       const chatId = msg.from.id
+      console.log('onCallback', msg)
+      if (msg.data.startsWith('Точка_')) {
+        const pointName = msg.data.replace(/_/g, ' ').trim()
+        await this.takePoint(msg, pointName)
+        await this.bot.deleteMessage(chatId, msg.message.message_id)
+        return
+      }
       switch (msg.data) {
         case 'tookPoints': { // забрал
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
@@ -533,89 +552,14 @@ export default class BotLogic {
           await this.defaultData(chatId)
           break
         }
-        case 'takePoint1': {
-          await this.takePoint(msg, 'Точка 1')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint1Y': {
-          await this.takePoint(msg, 'Точка 1 южная')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint2S': {
-          await this.takePoint(msg, 'Точка 2 северная')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint2': {
-          await this.takePoint(msg, 'Точка 2')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint3': {
-          await this.takePoint(msg, 'Точка 3')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint4': {
-          await this.takePoint(msg, 'Точка 4')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint5': {
-          await this.takePoint(msg, 'Точка 5')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint6': {
-          await this.takePoint(msg, 'Точка 6')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint7': {
-          await this.takePoint(msg, 'Точка 7')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint8': {
-          await this.takePoint(msg, 'Точка 8')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint9': {
-          await this.takePoint(msg, 'Точка 9')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint10': {
-          await this.takePoint(msg, 'Точка 10')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint11': {
-          await this.takePoint(msg, 'Точка 11')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint666': {
-          await this.takePoint(msg, 'Точка 666')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
-        case 'takePoint88': {
-          await this.takePoint(msg, 'Точка 88')
-          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          break
-        }
         case 'cancel': {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
-          await this.bot.sendMessage(chatId, "👌 Хорошо, ничего не меняем.")
+          await this.bot.sendMessage(chatId, '👌 Хорошо, ничего не меняем.')
           break
         }
         case 'change_city': {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
-          await this.bot.sendMessage(chatId, "Выберите новый город:", {
+          await this.bot.sendMessage(chatId, 'Выберите новый город:', {
             reply_markup: {
               inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
             }
@@ -624,12 +568,12 @@ export default class BotLogic {
         }
       }
 
-      if (msg.data.startsWith("city_")) {
-        const newCity = msg.data.replace("city_", "");
+      if (msg.data.startsWith('city_')) {
+        const newCity = msg.data.replace('city_', '')
 
-        await this.updateUserCity(msg.from.id, newCity);
+        await this.updateUserCity(msg.from.id, newCity)
         await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
-        await this.bot.sendMessage(chatId, `✅ Ваш город успешно обновлен на *${newCity}*!`, { parse_mode: "Markdown" });
+        await this.bot.sendMessage(chatId, `✅ Ваш город успешно обновлен на *${newCity}*!`, { parse_mode: 'Markdown' })
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
