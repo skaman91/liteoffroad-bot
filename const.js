@@ -31,6 +31,11 @@ const commands = [
   },
 
   {
+    command: "help",
+    description: "Застрял/Нужна помощь",
+  },
+
+  {
     command: "profile",
     description: "Посмотреть свой профиль"
   },
@@ -48,6 +53,11 @@ const commands = [
   {
     command: "start",
     description: "Запуск бота и регистрация в системе"
+  },
+
+  {
+    command: "changecity",
+    description: "Сменить город"
   }
 ]
 

@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL, TESTCHANEL_ID_LITEOFFROAD } from './auth/bot.mjs'
+import { ADMIN, CHANGE_ID_LITEOFFROAD, MONGO_URL, TESTCHANEL_ID_LITEOFFROAD, CITIES } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules1, rules2 } from './const.js'
 import cron from 'node-cron'
@@ -48,26 +48,47 @@ export default class BotLogic {
     try {
       if (msg.text) {
         console.log(this.getTime())
+        const profile = await userCollection.findOne({ id: msg.from.id })
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
-        const userName = `@${msg?.from.username}`
+        const userName = msg?.from.username ? `@${msg?.from.username}` : ''
+        const userId = msg?.from.id
         if (!usersMap[chatId]) {
-          usersMap[chatId] = { username: userName, firstName: user, step: 0, point: "", coordinates: '', comment: '', rating: 0, install: false, photo: '' }
+          usersMap[chatId] = {
+            username: userName,
+            firstName: user,
+            userId,
+            step: 0,
+            point: '',
+            coordinates: '',
+            comment: '',
+            rating: 0,
+            install: false,
+            photo: '',
+            waitingForResponse: false,
+            city: profile.city
+          }
         }
+        usersMap[chatId].city = profile.city
         console.log('userMap', usersMap[chatId])
         console.log('Сообщение: ', msg.text)
-        const profile = await userCollection.findOne({ id: msg.from.id })
+
+        if (!profile && msg.text !== '/start') {
+          await this.bot.sendMessage(chatId, `Вам нужно зарегистрироваться, для регистрации нажмите /start`)
+          return
+        }
 
         if (profile && profile.banned) {
           await this.bot.sendMessage(chatId, `Вам запрещено пользоваться ботом`)
           return
         }
         if (msg.text === '/points') {
-          const cursor = await collection.find()
+          const cursor = await collection.find({ city: usersMap[chatId].city })
           let i = 0
           const points = []
 
           for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+            console.log('data', data)
             i++
             points.push(data)
           }
@@ -92,7 +113,7 @@ export default class BotLogic {
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
-            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит ${rating} ${this.declOfNum(2, 'балл')}, когда установит эту точку`
+            const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит 2 балла, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
             const installedDays = `Точка установлена ${this.getDaysSinceInstallation(point.takeTimestamp)} ${this.declOfNum(this.getDaysSinceInstallation(point.takeTimestamp), 'дней')} назад`
@@ -131,7 +152,7 @@ export default class BotLogic {
         }
 
         if (/(\/take|\/install)/i.test(msg.text)) {
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           const profile = await userCollection.findOne({ id: msg.from.id })
           if (!profile) {
             await this.bot.sendMessage(chatId, 'Вы не зарегистрированы в боте, на жмите /start и повторите попытку')
@@ -186,7 +207,7 @@ export default class BotLogic {
         if (/^\/profile$/i.test(msg.text)) {
           const id = msg.from.id
           const chatId = msg.from.id
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           const profile = await userCollection.findOne({ id: id })
           if (profile) {
             const username = msg.from.username
@@ -195,7 +216,8 @@ export default class BotLogic {
             const position = profile.position
             const takePoints = profile.takePoints
             const installPoints = profile.installPoints
-            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nВаше место в рейтинге: ${position}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}`
+            const city = profile.city ? profile.city : 'Город не выбран'
+            const text = `Username: ${username}\nИмя аккаунта: ${firstName}\nВаш рейтинг: ${rating}\nВаше место в рейтинге: ${position}\nУстановлено точек: ${installPoints}\nВзято точек: ${takePoints}\nВаш город: ${city}`
             await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           }
         }
@@ -203,7 +225,7 @@ export default class BotLogic {
         if (/^\/results$/i.test(msg.text)) {
           try {
             const chatId = msg.from.id
-            this.defaultData(chatId)
+            await this.defaultData(chatId)
             const resultUsers = await this.ratingCursor()
             if (!resultUsers.length) {
               await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
@@ -243,7 +265,7 @@ export default class BotLogic {
         if (/^\/archive$/i.test(msg.text)) {
           try {
             const chatId = msg.from.id
-            this.defaultData(chatId)
+            await this.defaultData(chatId)
             await this.bot.sendMessage(chatId, 'Раздел в разработке')
             const cursor = await historyCollection.find().limit(30)
             let i = 0
@@ -296,7 +318,7 @@ export default class BotLogic {
 
         if (msg.text === '/rules') {
           const chatId = msg.from.id
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           await this.bot.sendMessage(chatId, rules1, {
             parse_mode: 'HTML',
             disable_notification: true,
@@ -357,7 +379,7 @@ export default class BotLogic {
 
         if (/^\/start$/i.test(msg.text)) {
           const chatId = msg.from.id
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
           await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
           const username = msg.from.username
@@ -377,14 +399,94 @@ export default class BotLogic {
               banned: false
             })
             await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
+            await this.bot.sendMessage(chatId, '🏙 Выберите город:', {
+              reply_markup: {
+                inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
+              }
+            })
+            return
           }
           await this.bot.sendMessage(chatId, 'Вы уже зарегистрированы')
         }
 
+        // help
+        if (/\/help/i.test(msg.text)) {
+          const chatId = msg.from.id
+          await this.defaultData(chatId)
+          const userId = usersMap[chatId].userId
+          const username = usersMap[chatId].username ? `${usersMap[chatId].username}` : `<a href="tg://user?id=${userId}">${usersMap[chatId].firstName}</a>`
+          await this.bot.sendMessage(chatId, `Привет, ${username}! Что случилось? Ваше сообщение будет отправлено в канал @liteoffroad всем пользователям. Отправьте координаты где вы застряли и напишите комментарий. Если позволяет интеренет, то отправьте фото и видео бедствия в комментарии к посту в канале.`, {
+            reply_markup: {
+              keyboard: [['❌ Отмена']],
+              one_time_keyboard: true,
+              resize_keyboard: true
+            },
+            parse_mode: 'HTML'
+          })
+          usersMap[chatId].waitingForResponse = true
+          return
+        }
+        // help
+        if (msg.text === '❌ Отмена' && usersMap[chatId].waitingForResponse) {
+          await this.bot.sendMessage(chatId, 'Запрос отменен.', {
+            reply_markup: { remove_keyboard: true }
+          })
+          usersMap[chatId].waitingForResponse = false
+        }
+        // help
+        if (usersMap[chatId].waitingForResponse) {
+          const userName = usersMap[chatId].username ? `${usersMap[chatId].username}` : `<a href="tg://user?id=${userId}">${usersMap[chatId].firstName}</a>`
+
+          if (msg.text) {
+            // Если пользователь отправил текст
+            await this.bot.sendMessage(chatId, 'Ваш запрос отправлен в общий канал @liteoffroad!', {
+              reply_markup: { remove_keyboard: true }
+            })
+            const text = `🚨ВНИМАНИЕ СОС!!!\n ${userName} требуется помощь:\n\n${msg.text}`
+            await this.bot.sendMessage(TESTCHANEL_ID_LITEOFFROAD, text, {
+              parse_mode: 'HTML'
+            })
+
+          }
+
+          // Убираем пользователя из списка ожидания
+          usersMap[chatId].waitingForResponse = false
+        }
+
+        if (/\/changeCity/i.test(msg.text)) {
+          const chatId = msg.from.id
+          await this.defaultData(chatId)
+          const userCity = await this.getUserCity(chatId)
+          console.log('user', user)
+          console.log('Ваш город -', userCity)
+          await this.bot.sendMessage(chatId, `🏙 Ваш текущий город: \n*${userCity}*\n\nХотите сменить город?`, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Да, сменить город', callback_data: 'change_city' }],
+                [{ text: 'Нет', callback_data: 'cancel' }]
+              ]
+            }
+          })
+        }
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
     }
+  }
+
+  async getUserCity (userId) {
+    const user = await userCollection.findOne({ id: userId })
+    return user ? user.city : 'Не указан'
+  }
+
+  async updateUserCity(userId, city) {
+    console.log('updateUserCity', userId, city)
+    await userCollection.updateOne({ id: userId }, {
+      $set: {
+        city: city,
+      }
+    })
   }
 
   async onCallback (msg) {
@@ -408,7 +510,7 @@ export default class BotLogic {
             }
           })
           await this.delay(500)
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           break
         }
         case 'noTookPoints': { // оставил
@@ -416,10 +518,13 @@ export default class BotLogic {
           const user = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
           const takers = isPoint.takers
           takers.push(user)
-          await collection.updateOne({ point: usersMap[chatId].point }, { $inc: { rating: 1, }, $set: { takers: takers } })
+          await collection.updateOne({ point: usersMap[chatId].point }, {
+            $inc: { rating: 1, },
+            $set: { takers: takers }
+          })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendMessage(CHANGE_ID_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
           break
         }
         case 'takePoint1': {
@@ -497,6 +602,28 @@ export default class BotLogic {
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           break
         }
+        case 'cancel': {
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
+          await this.bot.sendMessage(chatId, "👌 Хорошо, ничего не меняем.")
+          break
+        }
+        case 'change_city': {
+          await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
+          await this.bot.sendMessage(chatId, "Выберите новый город:", {
+            reply_markup: {
+              inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
+            }
+          })
+          break
+        }
+      }
+
+      if (msg.data.startsWith("city_")) {
+        const newCity = msg.data.replace("city_", "");
+
+        await this.updateUserCity(msg.from.id, newCity);
+        await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id).catch(() => {})
+        await this.bot.sendMessage(chatId, `✅ Ваш город успешно обновлен на *${newCity}*!`, { parse_mode: "Markdown" });
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
@@ -763,11 +890,11 @@ export default class BotLogic {
             }
           })
         } else {
-          this.defaultData(chatId)
+          await this.defaultData(chatId)
         }
       } else {
         await this.bot.sendMessage(chatId, 'Такая точка не найдена')
-        this.defaultData(chatId)
+        await this.defaultData(chatId)
       }
     } catch (e) {
       console.log('Failed onFile', e.message)
@@ -883,8 +1010,23 @@ export default class BotLogic {
     return map[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]]
   }
 
-  defaultData (chatId) {
-    usersMap[chatId] = { step: 0, point: "", coordinates: '', comment: '', rating: 0, install: false, photo: '' }
+  async defaultData (chatId) {
+    const profile = await userCollection.findOne({ id: chatId })
+
+    usersMap[chatId] = {
+      username: usersMap[chatId].username || '',
+      firstName: usersMap[chatId].firstName || '',
+      userId: usersMap[chatId].userId || '',
+      step: 0,
+      point: '',
+      coordinates: '',
+      comment: '',
+      rating: 0,
+      install: false,
+      photo: '',
+      waitingForResponse: false,
+      city: profile.city || '',
+    }
   }
 
   stop () {
