@@ -107,18 +107,19 @@ export default class BotLogic {
             }
 
             const coordinates = point.coordinates
-            const first = coordinates?.split(',')[0].trim()
-            const second = coordinates?.split(',')[1].trim()
+            const first = coordinates?.split(',')[0]?.trim()
+            const second = coordinates?.split(',')[1]?.trim()
             const photo = point?.photo
             const install = point.install
             const installed = point.installed
+            const osmAndLink = `<a href="https://osmand.net/map?pin=${first},${second}#13/${first}/${second}">Открыть в OsmAnd</a>`
             const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит 2 балла, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
             const installedDays = `Точка установлена ${this.getDaysSinceInstallation(point.takeTimestamp)} ${this.declOfNum(this.getDaysSinceInstallation(point.takeTimestamp), 'дней')} назад`
             const text = !takers.length
-              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n--------------------------------------`
-              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n--------------------------------------`
+              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
+              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
@@ -170,7 +171,6 @@ export default class BotLogic {
             })
             .limit(50)
             .toArray()
-          console.log('results', results)
           if (results.length === 0) {
             return await this.bot.sendMessage(chatId, 'Нет доступных точек для выбора.')
           }
@@ -545,7 +545,6 @@ export default class BotLogic {
   async onCallback (msg) {
     try {
       const chatId = msg.from.id
-      console.log('onCallback', msg)
       if (msg.data.startsWith('Точка_')) {
         const pointName = msg.data.replace(/_/g, ' ').trim()
         await this.takePoint(msg, pointName)
