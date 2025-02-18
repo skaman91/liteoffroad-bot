@@ -2,7 +2,7 @@ import TelegramBot from 'node-telegram-bot-api'
 import 'dotenv/config'
 import { CITIES } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
-import { commands, rules1, rules2 } from './const.js'
+import { commands, rules1, rules2, adminCommands } from './const.js'
 import cron from 'node-cron'
 
 const MONGO_URL = process.env.MONGO_URL
@@ -16,6 +16,7 @@ const userCollection = db.collection('users')
 const ADMIN = process.env.ADMIN
 const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
 const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
+let eventStarting = false
 
 const usersMap = {}
 
@@ -53,11 +54,23 @@ export default class BotLogic {
     try {
       if (msg.text) {
         console.log(this.getTime())
+        console.log('Сообщение:', msg.text, 'userName:', msg?.from.username ? `@${msg?.from.username}` : '', 'first_name:', msg?.from.first_name)
         const profile = await userCollection.findOne({ id: msg.from.id })
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
         const userName = msg?.from.username ? `@${msg?.from.username}` : ''
         const userId = msg?.from.id
+
+        if (!profile && msg.text === '/start') {
+          await this.registration(msg)
+          return
+        }
+
+        if (profile && msg.text === '/start') {
+          await this.bot.sendMessage(chatId, 'Вы уже зарегистрированы')
+          return
+        }
+
         if (!usersMap[chatId]) {
           usersMap[chatId] = {
             username: userName,
@@ -71,13 +84,13 @@ export default class BotLogic {
             install: false,
             photo: '',
             waitingForResponse: false,
-            city: profile.city
+            city: profile?.city || ''
           }
         }
-        usersMap[chatId].city = profile.city
-        console.log('userMap', usersMap[chatId])
-        console.log('Сообщение: ', msg.text)
 
+        usersMap[chatId].city = profile?.city || ''
+
+        // console.log('usersMap[chatId]', usersMap[chatId])
         if (!profile && msg.text !== '/start') {
           await this.bot.sendMessage(chatId, `Вам нужно зарегистрироваться, для регистрации нажмите /start`)
           return
@@ -101,7 +114,7 @@ export default class BotLogic {
           // Точки
           for (const point of points) {
             const name = point.point
-            if (name === 'Точка 88' && ADMIN !== userName) {
+            if (name === 'Точка 88' && !ADMIN.includes(userId)) {
               continue
             }
             const rating = point.rating
@@ -115,16 +128,18 @@ export default class BotLogic {
             const first = coordinates?.split(',')[0]?.trim()
             const second = coordinates?.split(',')[1]?.trim()
             const photo = point?.photo
+            const rang = point.rang === 'Хард' ? '🔴Хард' : '🟢Лайт'
             const install = point.install
             const installed = point.installed
             const osmAndLink = `<a href="https://osmand.net/map?pin=${first},${second}#13/${first}/${second}">Открыть в OsmAnd</a>`
             const ratingInfo = install ? `За взятие этой точки вам будет начислен ${rating} ${this.declOfNum(rating, 'балл')}.` : `${installed} получит 2 балла, когда установит эту точку`
             const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed} и еще не установил`
             const takers = point.takers ? point?.takers?.join(', ') : []
-            const installedDays = `Точка установлена ${this.getDaysSinceInstallation(point.takeTimestamp)} ${this.declOfNum(this.getDaysSinceInstallation(point.takeTimestamp), 'дней')} назад`
+            const installComment = install ? 'установлена' : 'взята'
+            const installedDays = `Точка ${installComment} ${this.getDaysSinceInstallation(point.takeTimestamp)} ${this.declOfNum(this.getDaysSinceInstallation(point.takeTimestamp), 'дней')} назад`
             const text = !takers.length
-              ? `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
-              : `<b>${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
+              ? `<b>${rang || ''} ${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
+              : `<b>${rang || ''} ${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
             // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
@@ -201,14 +216,16 @@ export default class BotLogic {
         }
 
         if (usersMap[chatId].step === 2 && usersMap[chatId].point && !usersMap[chatId].coordinates) {
-          const coordinatesField = /^(\d\d\.\d{4,}, \d\d\.\d{4,})$/i.test(msg.text)
-          if (coordinatesField && !usersMap[chatId].coordinates && usersMap[chatId].install) {
-            usersMap[chatId].coordinates = msg.text
+          const coordinates = this.parseCoordinates(msg.text)
+          console.log('input coordinates', msg.text)
+          console.log('formated coordinates', coordinates)
+          if (coordinates && !usersMap[chatId].coordinates && usersMap[chatId].install) {
+            usersMap[chatId].coordinates = coordinates
             usersMap[chatId].step = 3
             await this.bot.sendMessage(chatId, 'Напиши краткий комментарий к точке, например уровень сложности, рекомендации или что-то такое.')
             return
-          } else if (!coordinatesField && !usersMap[chatId].coordinates && usersMap[chatId].install) {
-            await this.bot.sendMessage(chatId, 'Формат координат неверный, нужно что бы они были в таком формате "60.342349, 30.017123" (без ковычек, просто цифры с запятой посередине). Если хочешь отменить оформление взятия точки, то напиши "отменить"')
+          } else if (!coordinates && !usersMap[chatId].coordinates && usersMap[chatId].install) {
+            await this.bot.sendMessage(chatId, 'Формат координат неверный, нужно что бы они были в таком формате "60.342349, 30.017123" (без кавычек, просто цифры с запятой посередине). Если хочешь отменить оформление взятия точки, то напиши "отменить"')
 
             return
           }
@@ -244,7 +261,8 @@ export default class BotLogic {
           try {
             const chatId = msg.from.id
             await this.defaultData(chatId)
-            const resultUsers = await this.ratingCursor()
+            const res = await this.ratingCursor()
+            const resultUsers = res.result
             if (!resultUsers.length) {
               await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
               return
@@ -269,6 +287,53 @@ export default class BotLogic {
                 message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
               } else {
                 message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
+              }
+            }
+            await this.bot.sendMessage(chatId, message, {
+              parse_mode: 'HTML',
+              disable_notification: true
+            })
+          } catch (e) {
+            console.error('Failed results', e.message)
+          }
+        }
+
+        if (/^\/eventresults$/i.test(msg.text)) {
+          try {
+            const chatId = msg.from.id
+            await this.defaultData(chatId)
+            if (!eventStarting) {
+              await this.bot.sendMessage(chatId, `Этап сейчас не проводится`)
+              return
+            }
+            const res = await this.ratingCursor()
+            const eventResult = res.eventResult
+
+            if (!eventResult.length) {
+              await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
+              return
+            }
+
+            let message = '<b>Результаты текущего этапа</b>'
+            for (let i = 0; i < eventResult.length; i++) {
+              const username = eventResult[i].username ? `@${eventResult[i].username}` : `<a href="tg://user?id=${eventResult[i].id}">${eventResult[i].firstName}</a>`
+              const date = new Date(eventResult[i].event.eventPositionTime)
+              const now = new Date()
+              const diffInMs = now - date
+              const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+              const hoursDiff = Math.floor((diffInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+              const minutesDiff = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60))
+              const ratingText = daysDiff
+                ? `На ${eventResult[i].event.eventPosition} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                : hoursDiff
+                  ? `На ${eventResult[i].event.eventPosition} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+                  : `На ${eventResult[i].event.eventPosition} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
+              message += `\n--------------------------------------\n`
+
+              if (eventResult[i].username) {
+                message += `<b>${eventResult[i]?.event?.eventPosition} Место</b> ${username}\n${eventResult[i]?.event?.rating} ${this.declOfNum(eventResult[i]?.event?.rating, 'балл')}\nВзято точек: ${eventResult[i].event.eventTakePoints}\nУстановлено точек: ${eventResult[i].event.eventInstallPoints}\n${ratingText}`
+              } else {
+                message += `<b>${eventResult[i]?.event?.eventPosition} Место</b> ${username}\n${eventResult[i]?.event?.rating} ${this.declOfNum(eventResult[i]?.event?.rating, 'балл')}\nВзято точек: ${eventResult[i]?.event?.eventTakePoints}\nУстановлено точек: ${eventResult[i]?.event?.eventInstallPoints}\n${ratingText}`
               }
             }
             await this.bot.sendMessage(chatId, message, {
@@ -305,7 +370,7 @@ export default class BotLogic {
             // Архивные Точки
             for (const archivePoint of points) {
               const name = archivePoint.point
-              if (name === 'Точка 88' && ADMIN !== userName) {
+              if (name === 'Точка 88' && !ADMIN.includes(userId)) {
                 continue
               }
               const rating = archivePoint.rating
@@ -316,7 +381,7 @@ export default class BotLogic {
               const photo = archivePoint?.photo
               const install = archivePoint.install
               const installed = archivePoint.installed
-              const id = ADMIN === userName ? `                  id: ${archivePoint.id}` : ''
+              const id = ADMIN.includes(userId) ? `                  id: ${archivePoint.id}` : ''
               const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating, 'балл')}.`
               const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
               const date = new Date(archivePoint.takeTimestamp)
@@ -356,7 +421,11 @@ export default class BotLogic {
         }
 
         // ADMIN
-        if (/вернуть \d+/i.test(msg.text) && ADMIN === userName) {
+        if (/команды/i.test(msg.text) && ADMIN.includes(userId)) {
+          await this.bot.sendMessage(chatId, adminCommands, { parse_mode: 'HTML' })
+        }
+
+        if (/вернуть \d+/i.test(msg.text) && ADMIN.includes(userId)) {
           const backPoint = msg.text.split(' ')[1].trim()
           await this.bot.sendMessage(chatId, `Возвращаю точку id: ${backPoint}`)
           const profile = await historyCollection.findOne({ id: parseInt(backPoint) })
@@ -385,28 +454,32 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, 'Готово')
         }
 
-        if (/правка/i.test(msg.text) && ADMIN === userName) {
+        if (/правка/i.test(msg.text) && ADMIN.includes(userId)) {
           // выполнить какое нибудь действие админом
           const text = `<a href="tg://user?id=477789928">user</a>`
           await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
         }
 
-        if (/Добавить точку/i.test(msg.text) && ADMIN === userName) { // Добавить точку 22 Лайт Санкт-Петербург
+        if (/обновить рейтинг этапа|игры/i.test(msg.text) && ADMIN.includes(userId)) {
+          await this.refreshRating()
+        }
+
+        if (/Добавить точку/i.test(msg.text) && ADMIN.includes(userId)) { // Добавить точку 22 Лайт Санкт-Петербург
           try {
             // выполнить какое нибудь действие админом
             const pointName = `Точка ${msg.text.split(' ')[2].trim()}`
             const rang = msg.text.split(' ')[3].trim()
             const city = msg.text.split(' ')[4].trim()
-            const checkPoint = await collection.findOne({point: pointName, city: city})
+            const checkPoint = await collection.findOne({ point: pointName, city: city })
             if (!checkPoint) {
               await collection.insertOne({
                 point: pointName,
-                coordinates: "",
-                comment: "Новая точка, еще не устанавливалась",
+                coordinates: ',',
+                comment: 'Новая точка, еще не устанавливалась',
                 rating: 1,
                 install: false,
-                installed: "",
-                photo: "",
+                installed: '',
+                photo: '',
                 takers: [],
                 id: Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000,
                 takeTimestamp: Date.now(),
@@ -426,47 +499,40 @@ export default class BotLogic {
           }
         }
 
-        if (/забанить /i.test(msg.text) && ADMIN === userName) {
+        if (/забанить /i.test(msg.text) && ADMIN.includes(userId)) {
           const banUser = msg.text.split(' ')[1].trim()
           await userCollection.updateOne({ username: banUser }, { $set: { 'banned': true } })
           await this.bot.sendMessage(chatId, `Пользователь ${banUser} забанен`)
         }
-        if (/разбанить /i.test(msg.text) && ADMIN === userName) {
+        if (/разбанить /i.test(msg.text) && ADMIN.includes(userId)) {
           const banUser = msg.text.split(' ')[1].trim()
           await userCollection.updateOne({ username: banUser }, { $set: { 'banned': false } })
           await this.bot.sendMessage(chatId, `Пользователь ${banUser} разбанен`)
         }
 
-        if (/^\/start$/i.test(msg.text)) {
-          const chatId = msg.from.id
-          await this.defaultData(chatId)
-          const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
-          await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
-          const username = msg.from.username
-          const firstName = msg.from.first_name
-          const id = msg.from.id
-          const profile = await userCollection.findOne({ id: id })
-          if (!profile) {
-            await userCollection.insertOne({
-              id: id,
-              firstName: firstName,
-              username: username,
-              rating: 0,
-              position: 0,
-              positionTime: new Date().getTime(),
-              takePoints: 0,
-              installPoints: 0,
-              banned: false
-            })
-            await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
-            await this.bot.sendMessage(chatId, '🏙 Выберите город:', {
-              reply_markup: {
-                inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
+        // ADMIN старт этапа
+        if (/\d+ этап старт/i.test(msg.text) && ADMIN.includes(userId)) { // 2 этап старт Санкт-Петербург
+          const eventNumber = msg.text.split(' ')[0].trim()
+          console.log('eventNumber', eventNumber)
+          const cityEvent = msg.text.split(' ')[3].trim()
+          console.log('cityEvent', cityEvent)
+          await userCollection.updateMany(
+            { city: cityEvent },
+            {
+              $set: {
+                event: {
+                  eventInstallPoints: 0,
+                  eventTakePoints: 0,
+                  rating: 0,
+                  eventPosition: 0,
+                  eventPositionTime: new Date().getTime()
+                }
               }
-            })
-            return
-          }
-          await this.bot.sendMessage(chatId, 'Вы уже зарегистрированы')
+            }
+          )
+          await this.bot.sendMessage(chatId, `Внимание! Стартует ${eventNumber} этап игры!`)
+          eventStarting = true
+          return
         }
 
         // help
@@ -502,6 +568,7 @@ export default class BotLogic {
               reply_markup: { remove_keyboard: true }
             })
             const text = `🚨ВНИМАНИЕ СОС!!!\n ${userName} требуется помощь:\n\n${msg.text}`
+            console.log('TESTCHANEL_ID_LITEOFFROAD', TESTCHANEL_ID_LITEOFFROAD)
             await this.bot.sendMessage(TESTCHANEL_ID_LITEOFFROAD, text, {
               parse_mode: 'HTML'
             })
@@ -530,6 +597,75 @@ export default class BotLogic {
       }
     } catch (e) {
       console.log('Failed onMessage', e.message)
+    }
+  }
+
+  parseCoordinates (input) {
+    input = input.trim().replace(/[^\d.,°′″ NSEW+\-]/g, '') // Удаляем лишние символы
+
+    // Если уже в правильном формате
+    let decimalMatch = input.match(/^([+\-]?\d{1,3}\.\d+),?\s*([+\-]?\d{1,3}\.\d+)$/)
+    if (decimalMatch) {
+      return `${parseFloat(decimalMatch[1]).toFixed(5)}, ${parseFloat(decimalMatch[2]).toFixed(5)}`
+    }
+
+    // Обработка формата с градусами, минутами и секундами
+    let dmsMatch = input.match(/(\d{1,3})°(\d{1,2})′(\d{1,2}(?:\.\d+)?)″?\s*([NSEW])/g)
+    if (dmsMatch && dmsMatch.length === 2) {
+      let coords = dmsMatch.map(dms => {
+        let [, deg, min, sec, dir] = dms.match(/(\d{1,3})°(\d{1,2})′(\d{1,2}(?:\.\d+)?)″?\s*([NSEW])/)
+        let decimal = parseInt(deg) + parseInt(min) / 60 + parseFloat(sec) / 3600
+        if (dir === 'S' || dir === 'W') decimal *= -1
+        return decimal.toFixed(5)
+      })
+      return `${coords[0]}, ${coords[1]}`
+    }
+
+    return null
+  }
+
+  async registration (msg) {
+    try {
+      if (/^\/start$/i.test(msg.text)) {
+        const chatId = msg.from.id
+        const text = `Привет. Это бот для игры "Застрянь друга" от команды Liteoffroad\nВ разделах меню ты найдешь всю необходимую информацию.\nПо техническим вопросам работы бота писать @skaman91\nУдачи 😉`
+        await this.bot.sendMessage(chatId, text, { parse_mode: 'HTML' })
+        const username = msg.from.username
+        const firstName = msg.from.first_name
+        const id = msg.from.id
+        const profile = await userCollection.findOne({ id: id })
+        if (!profile) {
+          await userCollection.insertOne({
+            id: id,
+            firstName: firstName,
+            username: username,
+            rating: 0,
+            eventRating: 0,
+            position: 0,
+            positionTime: new Date().getTime(),
+            takePoints: 0,
+            installPoints: 0,
+            banned: false,
+            event: {
+              eventTakePoints: 0,
+              eventInstallPoints: 0,
+              eventRating: 0,
+              eventPosition: 0,
+              eventPositionTime: new Date().getTime()
+            },
+            resultEvents: {}
+          })
+          await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
+          await this.bot.sendMessage(chatId, '🏙 Выберите город:', {
+            reply_markup: {
+              inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
+            }
+          })
+          return
+        }
+      }
+    } catch (e) {
+      console.log('Failed registration', e.message)
     }
   }
 
@@ -661,106 +797,140 @@ export default class BotLogic {
 
   async ratingCursor () {
     const result = []
+    const eventResult = []
     const cursor = await userCollection.find({ rating: { $gt: 0 } })
       .sort({
-        rating: -1,
         position: 1,
+        rating: -1,
         installPoints: -1,
         takePoints: -1
       })
+    const eventCursor = await userCollection.find({ 'event.rating': { $gt: 0 } })
+      .sort({
+        'event.eventPosition': 1,
+        'event.rating': -1,
+        'event.installPoints': -1,
+        'event.takePoints': -1
+      })
+    for (let data = await eventCursor.next(); data !== null; data = await eventCursor.next()) {
+      eventResult.push(data)
+    }
     for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
       result.push(data)
     }
-    return result
+    return { result, eventResult }
   }
 
-  async refreshRating (oldCursor, newCursor) {
+  async refreshRating () {
     try {
-      const newMap = {}
+      if (eventStarting) {
+        try {
+          const res = await this.ratingCursor()
+          const resultUsers = res.result
 
-      // Создаем мапу из нового массива
-      newCursor.forEach((user, index) => {
-        newMap[user._id] = { index, rating: user.rating }
-      })
+          if (!resultUsers.length) {
+            return
+          }
 
-      const updates = []
+          const eventUsers = await userCollection.find({ 'event.rating': { $gt: 0 } }).sort({
+            'event.rating': -1,
+            'event.eventPosition': 1,
+            'event.installPoints': -1,
+            'event.takePoints': -1
+          }).toArray()
 
-      // Если oldCursor пустой - добавляем всех как новых
-      if (oldCursor.length === 0) {
-        newCursor.forEach((user, index) => {
-          user.position = index + 1       // Устанавливаем позицию
-          user.positionTime = new Date().getTime()  // Устанавливаем текущее время для новых пользователей
-          updates.push(user)
-        })
-      } else {
-        // Сравниваем и обновляем данные
-        const oldMap = {}
-        oldCursor.forEach(user => {
-          oldMap[user._id] = user
-        })
+          let message = ''
+          let positionChanged = false
+          let positionAlert = false
 
-        oldCursor.forEach((user, index) => {
-          const newUser = newMap[user._id]
+          for (let i = 0; i < eventUsers.length; i++) {
+            const user = eventUsers[i]
+            const newPosition = i + 1
 
-          if (newUser) {
-            let updated = false
-            // Обновляем позицию, если она изменилась
-            if (newUser.index !== index) {
-              user.position = newUser.index + 1  // Позиция начинается с 1
-              user.positionTime = new Date().getTime()     // Обновляем только при изменении позиции
-              user.positionChanged = true
-              updated = true
-            }
+            if (user.event.eventPosition !== newPosition) {
+              positionChanged = true
 
-            // Обновляем рейтинг, если он изменился
-            if (user.rating !== newUser.rating) {
-              user.rating = newUser.rating
-              updated = true
-            }
+              if (newPosition <= 10 || user.position <= 10) {
+                positionChanged = true
+                positionAlert = true
 
-            if (updated) {
-              updates.push(user)
+                const userMention = user.username
+                  ? `@${user.username}`
+                  : `<a href="tg://user?id=${user.id}">${user.firstName}</a>`
+
+                message += `${userMention} теперь на ${newPosition} месте\n\n`
+              }
+
+              await userCollection.updateOne({ _id: user._id }, {
+                $set: {
+                  'event.eventPosition': newPosition,
+                  'event.eventPositionTime': Date.now()
+                }
+              })
             }
           }
-        })
 
-        // Добавляем новых пользователей, которых нет в oldCursor
-        newCursor.forEach((user, index) => {
-          if (!oldMap[user._id]) {
-            user.position = index + 1
-            user.positionTime = new Date().getTime()
-            user.positionChanged = true
-            updates.push(user)
+          if (positionChanged && positionAlert) {
+            console.log('message', message)
+            await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции в общем рейтинге игры обновились\n\n${message}`, {
+              parse_mode: 'HTML',
+              disable_notification: true
+            })
           }
-        })
+        } catch (e) {
+          console.error('Refresh event results', e.message)
+        }
       }
+      try {
+        const res = await this.ratingCursor()
+        const result = res.result
+        if (!result.length) {
+          return
+        }
+        const users = await userCollection.find({ rating: { $gt: 0 } }).sort({
+          rating: -1,
+          position: 1,
+          installPoints: -1,
+          takePoints: -1
+        }).toArray()
 
-      if (updates.length > 0) {
-        let hasPositionChanges = false
-        let message = '🏆Позиции в рейтинге обновились🏆\n\n'
+        let message = ''
+        let positionChanged = false
 
-        for (const update of updates) {
-          if (update.positionChanged) {
-            hasPositionChanges = true
-            console.log('update', update)
-            const newLeadUser = update?.username !== null ? `@${update.username}` : `<a href="tg://user?id=${update.id}">${update.firstName}</a>`
-            message += `${newLeadUser} теперь на ${update.position} месте \n\n`
-            await userCollection.updateOne({ id: update.id }, {
+        for (let i = 0; i < users.length; i++) {
+          const user = users[i]
+          const newPosition = i + 1
+
+          if (user.position !== newPosition) {
+            positionChanged = true
+
+            if (newPosition <= 10 || user.position <= 10) {
+              positionChanged = true
+
+              const userMention = user.username
+                ? `@${user.username}`
+                : `<a href="tg://user?id=${user.id}">${user.firstName}</a>`
+
+              message += `${userMention} теперь на ${newPosition} месте\n\n`
+            }
+
+            await userCollection.updateOne({ _id: user._id }, {
               $set: {
-                position: update.position,
-                positionTime: update.positionTime,
+                position: newPosition,
+                positionTime: Date.now()
               }
             })
           }
         }
 
-        if (hasPositionChanges) {
-          console.log('Текст refresh rating', message)
-          await this.bot.sendMessage(CHANEL_LITEOFFROAD, message, {
-            disable_notification: true,
-            parse_mode: 'HTML'
+        if (positionChanged && !eventStarting) {
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции в общем рейтинге игры обновились\n\n${message}`, {
+            parse_mode: 'HTML',
+            disable_notification: true
           })
         }
+      } catch (e) {
+        console.error('Refresh game results', e.message)
       }
     } catch (e) {
       console.error('Failed to refresh rating', e.message)
@@ -772,13 +942,12 @@ export default class BotLogic {
       const chatId = msg.from.id
       usersMap[chatId].photo = msg.photo[0].file_id
       console.log(this.getTime())
-      console.log('msg', msg)
-      console.log('photo', usersMap[chatId].photo)
+      console.log('Отправлено фото: ', usersMap[chatId].photo)
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
       const pointField = await collection.findOne({ point: usersMap[chatId].point })
       if (usersMap[chatId].step === 4 && usersMap[chatId].photo) {
         const text = usersMap[chatId].install
-          ? 'Отлично, этого достаточно. За установку этой точки, тебе начислен 2 балла'
+          ? 'Отлично, этого достаточно. За установку этой точки, тебе начислено 2 балла'
           : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
         await this.bot.sendMessage(chatId, text)
         usersMap[chatId].rating = pointField.rating
@@ -843,7 +1012,6 @@ export default class BotLogic {
         }
 
         if (msg.from.id) {
-          const oldCursor = await this.ratingCursor()
           await userCollection.updateOne({ id: msg.from.id }, {
             $inc: {
               rating: usersMap[chatId].install ? 2 : usersMap[chatId].rating,
@@ -851,8 +1019,21 @@ export default class BotLogic {
               takePoints: !usersMap[chatId].install ? 1 : 0
             }
           })
-          const newCursor = await this.ratingCursor()
-          await this.refreshRating(oldCursor, newCursor)
+          if (eventStarting) {
+            await userCollection.updateOne({ id: msg.from.id }, {
+              $inc: {
+                'event.rating': usersMap[chatId].install ? 2 : usersMap[chatId].rating,
+                'event.eventInstallPoints': usersMap[chatId].install ? 1 : 0,
+                'event.eventTakePoints': !usersMap[chatId].install ? 1 : 0
+              }
+            })
+          }
+
+          if (eventStarting) {
+            await this.refreshRating()
+          } else {
+            await this.refreshRating()
+          }
         }
 
         if (usersMap[chatId].install) {
@@ -919,8 +1100,6 @@ export default class BotLogic {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
       const oneWeekAgoTimestamp = oneWeekAgo.getTime()
-      const oldCursor = await this.ratingCursor()
-      console.log('oneWeekAgoTimestamp', oneWeekAgoTimestamp)
 
       const filter = {
         updateTimestamp: { $lte: oneWeekAgoTimestamp },
@@ -960,14 +1139,25 @@ export default class BotLogic {
             )
             message += `Точку устанавливал ${point.installed}, ему добавлен 1 балл\n`
           }
+          if (eventStarting) {
+            await userCollection.updateOne({ id: point.installedId },
+              {
+                $inc: { 'event.rating': 1 }
+              }
+            )
+          }
         }
       }
       console.log('Отправляемый текст:', message)
       await this.bot.sendMessage(CHANEL_LITEOFFROAD, message)
       console.log(`[${new Date().toISOString()}] Обновлено точек: ${pointsLastWeekAgo.length}`)
 
-      const newCursor = await this.ratingCursor()
-      await this.refreshRating(oldCursor, newCursor)
+      const { newCursor, newCursorEvent } = await this.ratingCursor()
+      if (eventStarting) {
+        await this.refreshRating()
+      } else {
+        await this.refreshRating()
+      }
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
     }
