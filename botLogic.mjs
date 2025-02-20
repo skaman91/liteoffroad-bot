@@ -606,7 +606,7 @@ export default class BotLogic {
     // Если уже в правильном формате
     let decimalMatch = input.match(/^([+\-]?\d{1,3}\.\d+),?\s*([+\-]?\d{1,3}\.\d+)$/)
     if (decimalMatch) {
-      return `${parseFloat(decimalMatch[1]).toFixed(5)}, ${parseFloat(decimalMatch[2]).toFixed(5)}`
+      return `${parseFloat(decimalMatch[1]).toFixed(6)}, ${parseFloat(decimalMatch[2]).toFixed(6)}`
     }
 
     // Обработка формата с градусами, минутами и секундами
