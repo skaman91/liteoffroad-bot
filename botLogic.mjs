@@ -896,6 +896,7 @@ export default class BotLogic {
 
         let message = ''
         let positionChanged = false
+        let positionAlert = false
 
         for (let i = 0; i < users.length; i++) {
           const user = users[i]
@@ -906,6 +907,7 @@ export default class BotLogic {
 
             if (newPosition <= 10 || user.position <= 10) {
               positionChanged = true
+              positionAlert = true
 
               const userMention = user.username
                 ? `@${user.username}`
@@ -923,7 +925,7 @@ export default class BotLogic {
           }
         }
 
-        if (positionChanged && !eventStarting) {
+        if (positionChanged && !eventStarting && positionAlert) {
           await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции в общем рейтинге игры обновились\n\n${message}`, {
             parse_mode: 'HTML',
             disable_notification: true
