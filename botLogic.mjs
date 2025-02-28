@@ -263,40 +263,67 @@ export default class BotLogic {
             await this.defaultData(chatId)
             const res = await this.ratingCursor()
             const resultUsers = res.result
+
             if (!resultUsers.length) {
               await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
               return
             }
+
             let message = '<b>Общие результаты игры</b>'
+            const maxLength = 4000 // Лимит символов в одном сообщении
+            let messages = [] // Массив для хранения частей
+
             for (let i = 0; i < resultUsers.length; i++) {
-              const username = resultUsers[i].username ? `@${resultUsers[i].username}` : `<a href="tg://user?id=${resultUsers[i].id}">${resultUsers[i].firstName}</a>`
+              const username = resultUsers[i].username
+                ? `@${resultUsers[i].username}`
+                : `<a href="tg://user?id=${resultUsers[i].id}">${resultUsers[i].firstName}</a>`
+
               const date = new Date(resultUsers[i].positionTime)
               const now = new Date()
               const diffInMs = now - date
               const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
               const hoursDiff = Math.floor((diffInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
               const minutesDiff = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60))
+
               const ratingText = daysDiff
                 ? `На ${resultUsers[i].position} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                 : hoursDiff
                   ? `На ${resultUsers[i].position} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                   : `На ${resultUsers[i].position} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-              message += `\n--------------------------------------\n`
 
-              if (resultUsers[i].username) {
-                message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
-              } else {
-                message += `<b>${resultUsers[i]?.position} Место</b> ${username}\n${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\nВзято точек: ${resultUsers[i].takePoints}\nУстановлено точек: ${resultUsers[i].installPoints}\n${ratingText}`
+              let entry = `\n--------------------------------------\n`
+              entry += `<b>${resultUsers[i]?.position} Место</b> ${username}\n`
+              entry += `${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\n`
+              entry += `Взято точек: ${resultUsers[i].takePoints}\n`
+              entry += `Установлено точек: ${resultUsers[i].installPoints}\n`
+              entry += `${ratingText}`
+
+              if ((message + entry).length > maxLength) {
+                messages.push(message) // Добавляем сформированную часть
+                message = '' // Очищаем буфер
               }
+
+              message += entry
             }
-            await this.bot.sendMessage(chatId, message, {
-              parse_mode: 'HTML',
-              disable_notification: true
-            })
+
+            // Добавляем оставшуюся часть, если она не пустая
+            if (message) {
+              messages.push(message)
+            }
+
+            // Отправляем все части сообщений
+            for (const msgPart of messages) {
+              await this.bot.sendMessage(chatId, msgPart, {
+                parse_mode: 'HTML',
+                disable_notification: true
+              })
+            }
+
           } catch (e) {
             console.error('Failed results', e.message)
           }
         }
+
 
         if (/^\/eventresults$/i.test(msg.text)) {
           try {
@@ -328,7 +355,7 @@ export default class BotLogic {
                 : hoursDiff
                   ? `На ${eventResult[i].event.eventPosition} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                   : `На ${eventResult[i].event.eventPosition} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-              message += `\n--------------------------------------\n`
+              message += `\n-------------------------------------\n`
 
               if (eventResult[i].username) {
                 message += `<b>${eventResult[i]?.event?.eventPosition} Место</b> ${username}\n${eventResult[i]?.event?.rating} ${this.declOfNum(eventResult[i]?.event?.rating, 'балл')}\nВзято точек: ${eventResult[i].event.eventTakePoints}\nУстановлено точек: ${eventResult[i].event.eventInstallPoints}\n${ratingText}`
@@ -710,6 +737,8 @@ export default class BotLogic {
             }
           })
           await this.delay(500)
+          await this.bot.sendMessage(chatId, 'Точка оставлена месте', { disable_notification: true })
+          console.log('Точка оставлена месте')
           await this.defaultData(chatId)
           break
         }
@@ -723,6 +752,8 @@ export default class BotLogic {
             $set: { takers: takers }
           })
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
+          await this.bot.sendMessage(chatId, 'Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))', { disable_notification: true })
+          console.log('Точку забрали')
           await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           await this.defaultData(chatId)
           break
