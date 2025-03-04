@@ -13,10 +13,12 @@ const db = client.db('liteoffroad')
 const collection = db.collection('points')
 const historyCollection = db.collection('historyPoints')
 const userCollection = db.collection('users')
+const stateCollection = db.collection('state')
 const ADMIN = process.env.ADMIN
 const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
 const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
 let eventStarting = false
+// await this.loadBotState()
 
 const usersMap = {}
 
@@ -26,6 +28,25 @@ export default class BotLogic {
   }) {
     this.apiToken = apiToken
     this.bot = null
+    this.init()
+  }
+
+  async init() {
+    await this.loadBotState()
+  }
+
+  async loadBotState() {
+    const state = await stateCollection.findOne({ key: 'eventStarting' })
+
+    if (state) {
+      eventStarting = state.value
+      console.log(`Loaded eventStarting: ${eventStarting}`)
+    } else {
+      // Если записи нет — создаем новую с eventStarting: false
+      await stateCollection.insertOne({ key: 'eventStarting', value: false })
+      eventStarting = false
+      console.log('State not found, initialized with eventStarting: false')
+    }
   }
 
   async start () {
@@ -39,7 +60,7 @@ export default class BotLogic {
       this.bot.on('callback_query', msg => this.onCallback(msg))
 
       // Планируем задачу на каждый день в 15:00
-      cron.schedule('0 15 * * *', () => { //'0 15 * * *'
+      cron.schedule('0 */3 * * *', () => { //'0 15 * * *'
         console.log(`[${new Date().toISOString()}] Запуск обновления рейтингов точек...`)
         this.updatePointsRating().then(() => console.log(`[${new Date().toISOString()}] Обновление завершено.`))
       })
@@ -84,7 +105,9 @@ export default class BotLogic {
             install: false,
             photo: '',
             waitingForResponse: false,
-            city: profile?.city || ''
+            city: profile?.city || '',
+            textForChanel: '',
+            textForChatId: ''
           }
         }
 
@@ -557,8 +580,19 @@ export default class BotLogic {
               }
             }
           )
-          await this.bot.sendMessage(chatId, `Внимание! Стартует ${eventNumber} этап игры!`)
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Стартует ${eventNumber} этап игры! Всем удачи! Этап будет завершен 1 апреля в 00:00❗❗❗`)
           eventStarting = true
+          await this.setEventStarting(eventStarting)
+          return
+        }
+
+        // ADMIN старт этапа
+        if (/\d+ этап старт/i.test(msg.text) && ADMIN.includes(userId)) { // 2 этап стоп Санкт-Петербург
+          const eventNumber = msg.text.split(' ')[0].trim()
+          const cityEvent = msg.text.split(' ')[3].trim()
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Окончен ${eventNumber} этап игры!❗❗❗`)
+          eventStarting = false
+          await this.setEventStarting(eventStarting)
           return
         }
 
@@ -721,6 +755,7 @@ export default class BotLogic {
       }
       switch (msg.data) {
         case 'tookPoints': { // забрал
+          console.log('Забрал usersMap[chatId].textForChanel', usersMap[chatId].textForChanel)
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await collection.updateOne({ point: usersMap[chatId].point }, {
             $set: {
@@ -737,24 +772,58 @@ export default class BotLogic {
             }
           })
           await this.delay(500)
-          await this.bot.sendMessage(chatId, 'Точка оставлена месте', { disable_notification: true })
-          console.log('Точка оставлена месте')
+          // await this.bot.sendMessage(chatId, 'Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))', { disable_notification: true })
+          console.log('Точку забрали')
+          usersMap[chatId].textForChatId += "\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))❗"
+          usersMap[chatId].textForChanel += "\n❗Точку забрали❗"
+
+          await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
+            caption: usersMap[chatId].textForChatId,
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
+          await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
+            caption: usersMap[chatId].textForChanel,
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
+          // await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку забрали', { disable_notification: true })
           await this.defaultData(chatId)
           break
         }
         case 'noTookPoints': { // оставил
+          console.log('Оставил usersMap[chatId].textForChanel', usersMap[chatId].textForChanel)
+
           const isPoint = await collection.findOne({ point: usersMap[chatId].point })
           const user = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
           const takers = isPoint.takers
           takers.push(user)
           await collection.updateOne({ point: usersMap[chatId].point }, {
-            $inc: { rating: 1, },
+            $inc: { rating: 1 },
             $set: { takers: takers }
           })
+          usersMap[chatId].textForChatId += "\n❗Вы оставили точку на месте❗"
+          usersMap[chatId].textForChanel += "\n❗❗❗Точку оставили на месте, рейтинг точки повышен на 1❗❗❗"
+
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-          await this.bot.sendMessage(chatId, 'Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))', { disable_notification: true })
-          console.log('Точку забрали')
-          await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
+            await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
+              caption: usersMap[chatId].textForChatId,
+              parse_mode: 'HTML',
+              disable_notification: true,
+              disable_web_page_preview: true
+            })
+            await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
+              caption: usersMap[chatId].textForChanel,
+              parse_mode: 'HTML',
+              disable_notification: true,
+              disable_web_page_preview: true
+            })
+
+          // await this.bot.sendMessage(chatId, 'Вы оставили точку на месте', { disable_notification: true })
+          console.log('Точку оставили на месте')
+          // await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           await this.defaultData(chatId)
           break
         }
@@ -903,7 +972,7 @@ export default class BotLogic {
 
           if (positionChanged && positionAlert) {
             console.log('message', message)
-            await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции в общем рейтинге игры обновились\n\n${message}`, {
+            await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции рейтинге этапа обновились\n\n${message}`, {
               parse_mode: 'HTML',
               disable_notification: true
             })
@@ -988,26 +1057,31 @@ export default class BotLogic {
         return
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
-      const text = usersMap[chatId].install
+      const textForChatId = usersMap[chatId].install
         ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 1}\nСообщение продублировано в основной канал @liteoffroad`
         : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
 
       const textForChanel = usersMap[chatId].install
         ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/">📍Карта с точками📍</a>`
-        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nЕму добавлен рейтинг +${usersMap[chatId].rating}`
+        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nКооринаты: <code>${pointField.coordinates}</code>\nЕму добавлен рейтинг +${usersMap[chatId].rating}`
 
-      await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
-        caption: text,
-        parse_mode: 'HTML',
-        disable_notification: true,
-        disable_web_page_preview: true
-      })
-      await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
-        caption: textForChanel,
-        parse_mode: 'HTML',
-        disable_notification: true,
-        disable_web_page_preview: true
-      })
+      usersMap[chatId].textForChatId = textForChatId
+      usersMap[chatId].textForChanel = textForChanel
+
+      if (usersMap[chatId].install) {
+        await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
+          caption: textForChatId,
+          parse_mode: 'HTML',
+          disable_notification: true,
+          disable_web_page_preview: true
+        })
+        await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
+          caption: textForChanel,
+          parse_mode: 'HTML',
+          disable_notification: true,
+          disable_web_page_preview: true
+        })
+      }
 
       if (pointField) {
         if (usersMap[chatId].install) {
@@ -1145,7 +1219,6 @@ export default class BotLogic {
       const pointsLastWeekAgo = await collection.find(filter).toArray()
 
       if (pointsLastWeekAgo.length === 0) {
-        console.log('Нет точек для обновления')
         return
       }
 
@@ -1163,14 +1236,13 @@ export default class BotLogic {
         message += `${point.point}: Новый рейтинг: ${point.rating + 1}\n`
         const user = await userCollection.findOne({ id: point.installedId })
         if (user) {
-          console.log('user', user)
           if (!user.banned) {
             await userCollection.updateOne({ id: point.installedId },
               {
                 $inc: { rating: 1 }
               }
             )
-            message += `Точку устанавливал ${point.installed}, ему добавлен 1 балл\n`
+            message += `Точку устанавливал ${point.installed}, ему добавлен 1 балл\n\n`
           }
           if (eventStarting) {
             await userCollection.updateOne({ id: point.installedId },
@@ -1181,20 +1253,22 @@ export default class BotLogic {
           }
         }
       }
-      console.log('Отправляемый текст:', message)
       await this.bot.sendMessage(CHANEL_LITEOFFROAD, message)
-      console.log(`[${new Date().toISOString()}] Обновлено точек: ${pointsLastWeekAgo.length}`)
-
-      const { newCursor, newCursorEvent } = await this.ratingCursor()
-      if (eventStarting) {
-        await this.refreshRating()
-      } else {
-        await this.refreshRating()
-      }
+      await this.refreshRating()
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
     }
   }
+
+  async setEventStarting(value) {
+    eventStarting = value
+    await stateCollection.updateOne(
+      { key: 'eventStarting' },
+      { $set: { value } },
+      { upsert: true }
+    )
+  }
+
 
   // кол-во дней с даты (timestamp)
   getDaysSinceInstallation (timestamp) {
@@ -1240,6 +1314,8 @@ export default class BotLogic {
       photo: '',
       waitingForResponse: false,
       city: profile.city || '',
+      textForChanel: '',
+      textForChatId: ''
     }
   }
 
