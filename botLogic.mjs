@@ -31,11 +31,11 @@ export default class BotLogic {
     this.init()
   }
 
-  async init() {
+  async init () {
     await this.loadBotState()
   }
 
-  async loadBotState() {
+  async loadBotState () {
     const state = await stateCollection.findOne({ key: 'eventStarting' })
 
     if (state) {
@@ -348,72 +348,70 @@ export default class BotLogic {
           }
         }
 
-
         if (/^\/eventresults|\/start eventresults$/i.test(msg.text)) {
           try {
-            const chatId = msg.from.id;
-            await this.defaultData(chatId);
+            const chatId = msg.from.id
+            await this.defaultData(chatId)
             if (!eventStarting) {
-              await this.bot.sendMessage(chatId, `Этап сейчас не проводится`);
-              return;
+              await this.bot.sendMessage(chatId, `Этап сейчас не проводится`)
+              return
             }
-            const res = await this.ratingCursor();
-            const eventResult = res.eventResult;
+            const res = await this.ratingCursor()
+            const eventResult = res.eventResult
 
             if (!eventResult.length) {
-              await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`);
-              return;
+              await this.bot.sendMessage(chatId, `Еще нет лидеров, игра только началась`)
+              return
             }
 
-            let messages = [];
-            let message = '<b>Результаты текущего этапа</b>\n';
+            let messages = []
+            let message = '<b>Результаты текущего этапа</b>\n'
 
             for (let i = 0; i < eventResult.length; i++) {
               const username = eventResult[i].username
                 ? `@${eventResult[i].username}`
-                : `<a href="tg://user?id=${eventResult[i].id}">${eventResult[i].firstName}</a>`;
+                : `<a href="tg://user?id=${eventResult[i].id}">${eventResult[i].firstName}</a>`
 
-              const date = new Date(eventResult[i].event.eventPositionTime);
-              const now = new Date();
-              const diffInMs = now - date;
-              const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-              const hoursDiff = Math.floor((diffInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-              const minutesDiff = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60));
+              const date = new Date(eventResult[i].event.eventPositionTime)
+              const now = new Date()
+              const diffInMs = now - date
+              const daysDiff = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+              const hoursDiff = Math.floor((diffInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+              const minutesDiff = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60))
 
               const ratingText = daysDiff
                 ? `На ${eventResult[i].event.eventPosition} месте уже ${daysDiff} ${this.declOfNum(daysDiff, 'дней')}, ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
                 : hoursDiff
                   ? `На ${eventResult[i].event.eventPosition} месте уже ${hoursDiff} ${this.declOfNum(hoursDiff, 'час')} и ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
-                  : `На ${eventResult[i].event.eventPosition} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`;
+                  : `На ${eventResult[i].event.eventPosition} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
 
-              let entry = `-------------------------------------\n`;
-              entry += `<b>${eventResult[i].event.eventPosition} Место</b> ${username}\n`;
-              entry += `${eventResult[i].event.rating} ${this.declOfNum(eventResult[i].event.rating, 'балл')}\n`;
-              entry += `Взято точек: ${eventResult[i].event.eventTakePoints}\n`;
-              entry += `Установлено точек: ${eventResult[i].event.eventInstallPoints}\n`;
-              entry += `${ratingText}\n`;
+              let entry = `-------------------------------------\n`
+              entry += `<b>${eventResult[i].event.eventPosition} Место</b> ${username}\n`
+              entry += `${eventResult[i].event.rating} ${this.declOfNum(eventResult[i].event.rating, 'балл')}\n`
+              entry += `Взято точек: ${eventResult[i].event.eventTakePoints}\n`
+              entry += `Установлено точек: ${eventResult[i].event.eventInstallPoints}\n`
+              entry += `${ratingText}\n`
 
               if ((message.length + entry.length) > 4000) {
-                messages.push(message);
-                message = entry; // Начинаем новое сообщение
+                messages.push(message)
+                message = entry // Начинаем новое сообщение
               } else {
-                message += entry;
+                message += entry
               }
             }
 
-            messages.push(message); // Добавляем последнее сообщение
+            messages.push(message) // Добавляем последнее сообщение
 
             for (const msgPart of messages) {
               await this.bot.sendMessage(chatId, msgPart, {
                 parse_mode: 'HTML',
                 disable_notification: true
-              });
+              })
             }
           } catch (e) {
-            console.error('Failed results', e.message);
+            console.error('Failed results', e.message)
           }
         }
-
 
         if (/^\/archive$/i.test(msg.text)) {
           try {
@@ -792,8 +790,8 @@ export default class BotLogic {
           await this.delay(500)
           // await this.bot.sendMessage(chatId, 'Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))', { disable_notification: true })
           console.log('Точку забрали')
-          usersMap[chatId].textForChatId += "\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))❗"
-          usersMap[chatId].textForChanel += "\n❗Точку забрали❗"
+          usersMap[chatId].textForChatId += '\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))❗'
+          usersMap[chatId].textForChanel += '\n❗Точку забрали❗'
 
           await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
             caption: usersMap[chatId].textForChatId,
@@ -822,22 +820,22 @@ export default class BotLogic {
             $inc: { rating: 1 },
             $set: { takers: takers }
           })
-          usersMap[chatId].textForChatId += "\n❗Вы оставили точку на месте❗"
-          usersMap[chatId].textForChanel += "\n❗❗❗Точку оставили на месте, рейтинг точки повышен на 1❗❗❗"
+          usersMap[chatId].textForChatId += '\n❗Вы оставили точку на месте❗'
+          usersMap[chatId].textForChanel += '\n❗❗❗Точку оставили на месте, рейтинг точки повышен на 1❗❗❗'
 
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
-            await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
-              caption: usersMap[chatId].textForChatId,
-              parse_mode: 'HTML',
-              disable_notification: true,
-              disable_web_page_preview: true
-            })
-            await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
-              caption: usersMap[chatId].textForChanel,
-              parse_mode: 'HTML',
-              disable_notification: true,
-              disable_web_page_preview: true
-            })
+          await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
+            caption: usersMap[chatId].textForChatId,
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
+          await this.bot.sendPhoto(CHANEL_LITEOFFROAD, usersMap[chatId].photo, {
+            caption: usersMap[chatId].textForChanel,
+            parse_mode: 'HTML',
+            disable_notification: true,
+            disable_web_page_preview: true
+          })
 
           // await this.bot.sendMessage(chatId, 'Вы оставили точку на месте', { disable_notification: true })
           console.log('Точку оставили на месте')
@@ -913,21 +911,21 @@ export default class BotLogic {
     }
   }
 
-  async checkInstallPoints() {
-    const currentTime = Date.now();
-    const threeDaysAgo = currentTime - (3 * 24 * 60 * 60 * 1000);
+  async checkInstallPoints () {
+    const currentTime = Date.now()
+    const threeDaysAgo = currentTime - (3 * 24 * 60 * 60 * 1000)
     const points = await collection.find({
       install: false,
       comment: { $ne: 'точку украли' },
       name: { $ne: 'Точка 88' }
-    }).toArray();
+    }).toArray()
 
     points.forEach(point => {
       if (point.takeTimestamp && point.takeTimestamp < threeDaysAgo) {
         console.log(`${point.point}, была взята более 3 дней назад`)
         console.log(`Точку установил ${point.installed}`)
       }
-    });
+    })
   }
 
   async ratingCursor () {
@@ -1295,7 +1293,7 @@ export default class BotLogic {
     }
   }
 
-  async setEventStarting(value) {
+  async setEventStarting (value) {
     eventStarting = value
     await stateCollection.updateOne(
       { key: 'eventStarting' },
@@ -1304,14 +1302,13 @@ export default class BotLogic {
     )
   }
 
-
   // кол-во дней с даты (timestamp)
-  getDaysSinceInstallation(timestamp) {
-    const currentDate = new Date();
-    const installationDate = new Date(timestamp);
+  getDaysSinceInstallation (timestamp) {
+    const currentDate = new Date()
+    const installationDate = new Date(timestamp)
 
     // Разница в днях, считая смену даты
-    return Math.ceil((currentDate - installationDate) / (1000 * 60 * 60 * 24));
+    return Math.ceil((currentDate - installationDate) / (1000 * 60 * 60 * 24))
   }
 
   declOfNum (number, label) {
