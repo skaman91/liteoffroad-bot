@@ -349,7 +349,7 @@ export default class BotLogic {
         }
 
 
-        if (/^\/eventresults$/i.test(msg.text)) {
+        if (/^\/eventresults|\/start eventresults$/i.test(msg.text)) {
           try {
             const chatId = msg.from.id;
             await this.defaultData(chatId);
@@ -1006,8 +1006,8 @@ export default class BotLogic {
           }
 
           if (positionChanged && positionAlert) {
-            console.log('message', message)
-            await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции рейтинге этапа обновились\n\n${message}`, {
+            message += `<a href="https://t.me/liteoffroad_bot?start=eventresults">Посмотреть рейтинг этапа</a>`
+            await this.bot.sendMessage(CHANEL_LITEOFFROAD, `🏆 Позиции в рейтинге этапа обновились\n\n${message}`, {
               parse_mode: 'HTML',
               disable_notification: true
             })
@@ -1093,7 +1093,7 @@ export default class BotLogic {
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
       const textForChatId = usersMap[chatId].install
-        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 1}\nСообщение продублировано в основной канал @liteoffroad`
+        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 2}\nСообщение продублировано в основной канал @liteoffroad`
         : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
 
       const textForChanel = usersMap[chatId].install
