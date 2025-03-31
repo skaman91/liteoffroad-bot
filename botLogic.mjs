@@ -239,7 +239,7 @@ export default class BotLogic {
           return
         }
 
-        if (usersMap[chatId].step === 2 && usersMap[chatId].point && !usersMap[chatId].coordinates) {
+        if (usersMap[chatId].step === 2 && usersMap[chatId].point && !usersMap[chatId].coordinates && usersMap[chatId].install) {
           const coordinates = this.parseCoordinates(msg.text)
           console.log('input coordinates', msg.text)
           console.log('formated coordinates', coordinates)
@@ -254,8 +254,16 @@ export default class BotLogic {
             return
           }
         }
+        if (!usersMap[chatId].install && usersMap[chatId].step === 3) {
+          if (!usersMap[chatId].comment) {
+            usersMap[chatId].step = 4
+            usersMap[chatId].comment = msg.text
+            await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию взятия точки')
+            return
+          }
+        }
 
-        if (usersMap[chatId].point && usersMap[chatId].coordinates && usersMap[chatId].step === 3) {
+        if ((usersMap[chatId].point && usersMap[chatId].coordinates && usersMap[chatId].step === 3) || usersMap[chatId].step === 3 && !usersMap[chatId].install) {
           if (!usersMap[chatId].comment) {
             usersMap[chatId].comment = msg.text
             usersMap[chatId].step = 4
@@ -906,8 +914,8 @@ export default class BotLogic {
         await this.bot.sendMessage(chatId, `❗❗❗Вы уже брали эту точку, нельзя брать точки повторно. Вы сможете снова взять эту точку, только если другой участник ее переставит.❗❗❗`)
         return
       }
-      await this.bot.sendMessage(chatId, 'Отправь ОДНУ!!! фотографию взятия точки')
-      usersMap[chatId].step = 4
+      await this.bot.sendMessage(chatId, 'Напиши комментарий, например впечатления о взятии точки, было сложно или просто. Ну что-то такое) Либо просто отправь прочерк -')
+      usersMap[chatId].step = 3
     }
   }
 
@@ -1083,7 +1091,7 @@ export default class BotLogic {
       if (usersMap[chatId].step === 4 && usersMap[chatId].photo) {
         const text = usersMap[chatId].install
           ? 'Отлично, этого достаточно. За установку этой точки, тебе начислено 2 балла'
-          : `Отлично, этого достаточно. За взятие этой точки, тебе начислен ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
+          : `Отлично, этого достаточно. За взятие этой точки, тебе начислено: ${pointField.rating} ${this.declOfNum(pointField.rating, 'балл')}`
         await this.bot.sendMessage(chatId, text)
         usersMap[chatId].rating = pointField.rating
       } else {
@@ -1092,11 +1100,11 @@ export default class BotLogic {
       const profile = await userCollection.findOne({ id: msg.from.id })
       const textForChatId = usersMap[chatId].install
         ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 2}\nСообщение продублировано в основной канал @liteoffroad`
-        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
+        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
 
       const textForChanel = usersMap[chatId].install
         ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/?id=${pointField.id}&type=install">📍Карта с точками📍</a>`
-        : `${usersMap[chatId].point} Взята 🔥\n${usersMap[chatId].comment}\nТочку взял: ${username}\nКооринаты: <code>${pointField.coordinates}</code>\nЕму добавлен рейтинг +${usersMap[chatId].rating}\n<a href="https://point-map.ru/?id=${pointField.id}&type=take">📍Карта с точками📍</a>`
+        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nКооринаты: <code>${pointField.coordinates}</code>\nЕму добавлен рейтинг +${usersMap[chatId].rating}\n<a href="https://point-map.ru/?id=${pointField.id}&type=take">📍Карта с точками📍</a>`
 
       usersMap[chatId].textForChatId = textForChatId
       usersMap[chatId].textForChanel = textForChanel
@@ -1137,7 +1145,7 @@ export default class BotLogic {
           await historyCollection.insertOne({
             id: pointField.id || Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000,
             point: pointField.point,
-            comment: pointField.comment,
+            comment: usersMap[chatId].comment,
             coordinates: pointField.coordinates,
             install: false,
             installed: msg.from.username ? `@${msg.from.username}` : msg.from.first_name,
