@@ -62,9 +62,9 @@ export default class BotLogic {
       cron.schedule('0 */3 * * *', () => {
         this.updatePointsRating().then(() => console.log(``))
       })
-      // cron.schedule('* * * * *', () => {
-      //   this.checkInstallPoints().then(() => console.log(``))
-      // })
+      cron.schedule('* * * * *', () => {
+        this.checkInstallPoints()
+      })
     }
   }
 
@@ -324,7 +324,7 @@ export default class BotLogic {
                   : `На ${resultUsers[i].position} месте уже ${minutesDiff} ${this.declOfNum(minutesDiff, 'мин')}`
 
               let entry = `\n--------------------------------------\n`
-              entry += `<b>${resultUsers[i]?.position} Место</b> ${username}\n`
+              entry += `<b>${resultUsers[i]?.position} Место</b> ${username} ${resultUsers[i]?.winner}\n`
               entry += `${resultUsers[i].rating} ${this.declOfNum(resultUsers[i].rating, 'балл')}\n`
               entry += `Взято точек: ${resultUsers[i].takePoints}\n`
               entry += `Установлено точек: ${resultUsers[i].installPoints}\n`
@@ -611,8 +611,8 @@ export default class BotLogic {
           return
         }
 
-        // ADMIN старт этапа
-        if (/\d+ этап старт/i.test(msg.text) && ADMIN.includes(userId)) { // 2 этап стоп Санкт-Петербург
+        // ADMIN стоп этапа
+        if (/\d+ этап стоп/i.test(msg.text) && ADMIN.includes(userId)) { // 2 этап стоп Санкт-Петербург
           const eventNumber = msg.text.split(' ')[0].trim()
           const cityEvent = msg.text.split(' ')[3].trim()
           await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Окончен ${eventNumber} этап игры!❗❗❗`)
@@ -738,7 +738,10 @@ export default class BotLogic {
               eventPosition: 0,
               eventPositionTime: new Date().getTime()
             },
-            resultEvents: {}
+            resultEvents: {},
+            takenPoints: [],
+            noInstallPoints: [],
+            winner: ''
           })
           await this.bot.sendMessage(chatId, 'Вы успешно зарегистрированы')
           await this.bot.sendMessage(chatId, '🏙 Выберите город:', {
@@ -813,7 +816,16 @@ export default class BotLogic {
             disable_notification: true,
             disable_web_page_preview: true
           })
-          // await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку забрали', { disable_notification: true })
+
+          const now = Date.now() * 1000
+          const newPoint = { point: usersMap[chatId].point, timestamp: now }
+
+          // Обновляем запись пользователя в базе данных, добавляя точку в массив noInstallPoints
+          await userCollection.updateOne(
+            { id: msg.from.id },
+            { $push: { noInstallPoints: newPoint } }
+          )
+
           await this.defaultData(chatId)
           break
         }
@@ -914,27 +926,122 @@ export default class BotLogic {
         await this.bot.sendMessage(chatId, `❗❗❗Вы уже брали эту точку, нельзя брать точки повторно. Вы сможете снова взять эту точку, только если другой участник ее переставит.❗❗❗`)
         return
       }
+
+      // нельзя иметь на руках больше 3 точек
+      if (usersMap[chatId].noInstallPoints) {
+        if (usersMap[chatId].noInstallPoints.length === 2) {
+          await this.bot.sendMessage(chatId, `❗У вас уже есть 2 точки на руках, после взятия этой точки, вам нужно расставить имеющиеся точки❗`)
+        }
+        if (usersMap[chatId].noInstallPoints.length === 3) {
+          await this.bot.sendMessage(chatId, `❗У вас 3 точки на руках, вы не можете брать точки, пока не расставите имеющиеся❗`)
+        }
+      }
+
+      // каждую точку можно брать только раз в сутки
+      const now = Date.now()
+      await userCollection.updateOne(
+        { id: msg.from.id },
+        {
+          $pull: { takenPoints: { timestamp: { $lt: now - 24 * 60 * 60 * 1000 } } }  // Удаляем записи старше 24 часов
+        }
+      )
+      const user = await userCollection.findOne({ id: msg.from.id })
+      const takenPoints = user ? user.takenPoints : []
+      usersMap[chatId].takenPoints = takenPoints
+      const pointEntry = takenPoints.find(p => p.point === pointText)
+      if (pointEntry && (now - pointEntry.timestamp < 24 * 60 * 60 * 1000)) {
+        const msLeft = 24 * 60 * 60 * 1000 - (now - pointEntry.timestamp)
+
+        const hours = Math.floor(msLeft / (1000 * 60 * 60))
+        const minutes = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60))
+
+        const timeLeft = `${hours} ч ${minutes} мин`
+
+        await this.bot.sendMessage(chatId, `❗Вы уже брали эту точку в течение 24 часов. Вы сможете взять её снова через ${timeLeft}.❗`)
+        return
+      }
+
       await this.bot.sendMessage(chatId, 'Напиши комментарий, например впечатления о взятии точки, было сложно или просто. Ну что-то такое) Либо просто отправь прочерк -')
       usersMap[chatId].step = 3
     }
   }
 
-  async checkInstallPoints () {
-    const currentTime = Date.now()
-    const threeDaysAgo = currentTime - (3 * 24 * 60 * 60 * 1000)
-    const points = await collection.find({
-      install: false,
-      comment: { $ne: 'точку украли' },
-      name: { $ne: 'Точка 88' }
+  async checkInstallPoints() {
+    const now = Date.now()
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
+    // const TWENTY_FOUR_HOURS_MS = 5 * 60 * 1000
+
+    const users = await userCollection.find({
+      noInstallPoints: { $exists: true, $not: { $size: 0 } }
     }).toArray()
 
-    points.forEach(point => {
-      if (point.takeTimestamp && point.takeTimestamp < threeDaysAgo) {
-        console.log(`${point.point}, была взята более 3 дней назад`)
-        console.log(`Точку установил ${point.installed}`)
+    for (const user of users) {
+      // Фильтруем просроченные точки
+      const overduePoints = user.noInstallPoints.filter(p => {
+        const ts = typeof p.timestamp === 'number' ? p.timestamp : Number(p.timestamp)
+        return now - ts > THREE_DAYS_MS
+      })
+
+      if (overduePoints.length > 0) {
+        // Проходим по каждой просроченной точке и проверяем, прошло ли 24 часа с последнего списания
+        let pointsToDeduct = []
+        for (const point of overduePoints) {
+          const lastDeduction = point.lastDeductionTimestamp || 0
+          if (now - lastDeduction >= TWENTY_FOUR_HOURS_MS) {
+            pointsToDeduct.push(point)
+          }
+        }
+
+        // Если есть точки, для которых прошло 24 часа, списываем баллы
+        if (pointsToDeduct.length > 0) {
+          const username = user.username
+            ? `@${user.username}`
+            : `<a href="tg://user?id=${user.id}">${user.firstName || 'Пользователь'}</a>`
+
+          let text = `🔔 У пользователя ${username} просроченные точки:\n`
+          for (const point of pointsToDeduct) {
+            const diff = now - point.timestamp
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+
+            text += `<b>${point.point}</b> была взята <b>${days} дн ${hours} ч</b> назад.\n`
+          }
+          text += `За просрочку списано ${pointsToDeduct.length} б.\n`
+          await this.bot.sendMessage(139280481, text, { parse_mode: 'HTML' })
+
+          // Обновляем timestamp последнего списания для каждой точки
+          await userCollection.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                "noInstallPoints.$[elem].lastDeductionTimestamp": now
+              },
+            },
+            {
+              arrayFilters: [
+                { "elem": { $in: pointsToDeduct } }
+              ]
+            }
+          )
+          // await userCollection.updateOne({ id: user.id }, {
+          //   $inc: {
+          //     rating: -1
+          //   }
+          // })
+          // if (eventStarting) {
+          //   await userCollection.updateOne({ id: user.id }, {
+          //     $inc: {
+          //       'event.rating': -1
+          //     }
+          //   })
+          // }
+        }
       }
-    })
+    }
   }
+
+
 
   async ratingCursor () {
     const result = []
@@ -1200,6 +1307,10 @@ export default class BotLogic {
               updateTimestamp: new Date().getTime()
             }
           })
+          await userCollection.updateOne(
+            { id: msg.from.id },
+            { $pull: { noInstallPoints: { point: usersMap[chatId].point } } }  // Удаляем точку из массива noInstallPoints
+          )
         }
         if (!usersMap[chatId].install) {
           await this.bot.sendMessage(chatId, `Точка осталась на месте или забрал?`, {
@@ -1209,6 +1320,11 @@ export default class BotLogic {
               ]
             }
           })
+          const now = Date.now() * 1000
+          await userCollection.updateOne(
+            { id: msg.from.id },
+            { $push: { takenPoints: { point: usersMap[chatId].point, timestamp: now } } }
+          )
         } else {
           await this.defaultData(chatId)
         }
@@ -1355,7 +1471,9 @@ export default class BotLogic {
       waitingForResponse: false,
       city: profile.city || '',
       textForChanel: '',
-      textForChatId: ''
+      textForChatId: '',
+      takenPoints: profile.takenPoints || [],
+      noInstallPoints: profile.noInstallPoints || []
     }
   }
 
