@@ -4,6 +4,8 @@ import { CITIES } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
 import { commands, rules1, rules2, adminCommands } from './const.js'
 import cron from 'node-cron'
+import * as turf from '@turf/turf'
+// import { gameZones } from './zones.js'
 
 const MONGO_URL = process.env.MONGO_URL
 const client = new MongoClient(MONGO_URL)
@@ -18,6 +20,7 @@ const ADMIN = process.env.ADMIN
 const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
 const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
 let eventStarting = false
+// let eventStage = ''
 // await this.loadBotState()
 
 const usersMap = {}
@@ -37,9 +40,11 @@ export default class BotLogic {
 
   async loadBotState () {
     const state = await stateCollection.findOne({ key: 'eventStarting' })
+    // const stage = await stateCollection.findOne({ key: 'eventStage' })
 
     if (state) {
       eventStarting = state.value
+      // eventStage = state.value
       console.log(`Loaded eventStarting: ${eventStarting}`)
     } else {
       // Если записи нет — создаем новую с eventStarting: false
@@ -108,7 +113,9 @@ export default class BotLogic {
             waitingForResponse: false,
             city: profile?.city || '',
             textForChanel: '',
-            textForChatId: ''
+            textForChatId: '',
+            takenPoints: profile?.takenPoints || [],
+            noInstallPoints: profile.noInstallPoints
           }
         }
 
@@ -243,6 +250,8 @@ export default class BotLogic {
           const coordinates = this.parseCoordinates(msg.text)
           console.log('input coordinates', msg.text)
           console.log('formated coordinates', coordinates)
+          // this.checkCoordinatesArea(coordinates)
+
           if (coordinates && !usersMap[chatId].coordinates && usersMap[chatId].install) {
             usersMap[chatId].coordinates = coordinates
             usersMap[chatId].step = 3
@@ -532,7 +541,9 @@ export default class BotLogic {
 
         if (/правка/i.test(msg.text) && ADMIN.includes(userId)) {
           // выполнить какое нибудь действие админом
-          await this.checkInstallPoints()
+          const coord = msg.text.split('|')[1].trim()
+          console.log('coord', coord)
+          this.checkCoordinatesArea(coord)
         }
 
         if (/обновить рейтинг этапа|игры/i.test(msg.text) && ADMIN.includes(userId)) {
@@ -707,6 +718,30 @@ export default class BotLogic {
     }
 
     return null
+  }
+
+  checkCoordinatesArea (input) {
+    const polygonCoordinates = [
+      [29.948576019403, 60.2476041405961],
+      [29.9401646119323, 60.2351644124971],
+      [29.9968128663268, 60.2187128636216],
+      [30.0136356812682, 60.2419812869151],
+      [29.9724369507995, 60.2664251544495],
+      [29.948576019403, 60.2476041405961]
+    ]
+    const first = input?.split(',')[0]?.trim()
+    const second = input?.split(',')[1]?.trim()
+    // Создаем объект многоугольника с использованием Turf.js
+    const polygon = turf.polygon([polygonCoordinates])
+    const userPoint = turf.point([second, first])
+    // Проверка, лежит ли точка внутри многоугольника
+    const isInside = turf.booleanPointInPolygon(userPoint, polygon)
+
+    if (isInside) {
+      console.log('Точка находится в зоне игры!')
+    } else {
+      console.log('Точка не в зоне игры!')
+    }
   }
 
   async registration (msg) {
