@@ -18,7 +18,7 @@ const userCollection = db.collection('users')
 const stateCollection = db.collection('state')
 const ADMIN = process.env.ADMIN
 const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
-const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
+// const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
 let eventStarting = false
 // let eventStage = ''
 // await this.loadBotState()
@@ -625,7 +625,7 @@ export default class BotLogic {
         // ADMIN стоп этапа
         if (/\d+ этап стоп/i.test(msg.text) && ADMIN.includes(userId)) { // 2 этап стоп Санкт-Петербург
           const eventNumber = msg.text.split(' ')[0].trim()
-          const cityEvent = msg.text.split(' ')[3].trim()
+          // const cityEvent = msg.text.split(' ')[3].trim()
           await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Окончен ${eventNumber} этап игры!❗❗❗`)
           eventStarting = false
           await this.setEventStarting(eventStarting)
@@ -784,7 +784,6 @@ export default class BotLogic {
               inline_keyboard: CITIES.map(city => [{ text: city, callback_data: `city_${city}` }])
             }
           })
-          return
         }
       }
     } catch (e) {
