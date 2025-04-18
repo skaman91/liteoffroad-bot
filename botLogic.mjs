@@ -2,10 +2,10 @@ import TelegramBot from 'node-telegram-bot-api'
 import 'dotenv/config'
 import { CITIES } from './auth/bot.mjs'
 import { MongoClient } from 'mongodb'
-import { commands, rules1, rules2, adminCommands } from './const.js'
+import { commands, rules, adminCommands, DAYS_FOR_INSTALL, DELAY_HOURS } from './const.js'
 import cron from 'node-cron'
 import * as turf from '@turf/turf'
-// import { gameZones } from './zones.js'
+import { gameZones } from './zones.js'
 
 const MONGO_URL = process.env.MONGO_URL
 const client = new MongoClient(MONGO_URL)
@@ -20,6 +20,7 @@ const ADMIN = process.env.ADMIN
 const CHANEL_LITEOFFROAD = process.env.CHANEL_LITEOFFROAD
 // const TESTCHANEL_ID_LITEOFFROAD = process.env.TESTCHANEL_ID_LITEOFFROAD
 let eventStarting = false
+const pointTimeouts = {}
 // let eventStage = ''
 // await this.loadBotState()
 
@@ -40,14 +41,11 @@ export default class BotLogic {
 
   async loadBotState () {
     const state = await stateCollection.findOne({ key: 'eventStarting' })
-    // const stage = await stateCollection.findOne({ key: 'eventStage' })
 
     if (state) {
       eventStarting = state.value
-      // eventStage = state.value
       console.log(`Loaded eventStarting: ${eventStarting}`)
     } else {
-      // Если записи нет — создаем новую с eventStarting: false
       await stateCollection.insertOne({ key: 'eventStarting', value: false })
       eventStarting = false
       console.log('State not found, initialized with eventStarting: false')
@@ -115,13 +113,13 @@ export default class BotLogic {
             textForChanel: '',
             textForChatId: '',
             takenPoints: profile?.takenPoints || [],
-            noInstallPoints: profile.noInstallPoints
+            noInstallPoints: profile.noInstallPoints,
+            coordinatesInArea: true
           }
         }
 
         usersMap[chatId].city = profile?.city || ''
 
-        // console.log('usersMap[chatId]', usersMap[chatId])
         if (!profile && msg.text !== '/start') {
           await this.bot.sendMessage(chatId, `Вам нужно зарегистрироваться, для регистрации нажмите /start`)
           return
@@ -171,7 +169,6 @@ export default class BotLogic {
             const text = !takers.length
               ? `<b>${rang || ''} ${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
               : `<b>${rang || ''} ${name}</b>\n<code>${coordinates}</code>\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${takers}\n${installedDays}\n${osmAndLink}\n--------------------------------------`
-            // await this.bot.sendLocation(chatId, first, second)
             if (photo) {
               await this.bot.sendPhoto(chatId, photo, {
                 caption: text,
@@ -210,11 +207,8 @@ export default class BotLogic {
             return
           }
           usersMap[chatId].install = /\/install/i.test(msg.text)
-          if (!usersMap[chatId].install) {
-            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Взятие точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
-          } else {
-            await this.bot.sendMessage(chatId, 'Супер, давай тогда оформим Установку точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎')
-          }
+          const install = usersMap[chatId].install ? 'Установку' : 'Взятие'
+          await this.bot.sendMessage(chatId, `Супер, давай тогда оформим ${install} точки. Я задам несколько вопросов. Постарайся ответить точно, все таки это супер важная инфа 😎`)
           const results = await collection
             .find({
               city: usersMap[chatId].city,
@@ -430,79 +424,16 @@ export default class BotLogic {
           }
         }
 
-        if (/^\/archive$/i.test(msg.text)) {
-          try {
-            const chatId = msg.from.id
-            await this.defaultData(chatId)
-            const cursor = await historyCollection
-              .find({ city: usersMap[chatId].city })
-              .sort({ _id: -1 })
-              .limit(20)
-            let i = 0
-            const points = []
-
-            for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
-              i++
-              points.push(data)
-            }
-            if (points.length) {
-              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 20 архивных точек:</b>`, { parse_mode: 'HTML' })
-            } else {
-              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nНе нашлось архивных точек:</b>`, { parse_mode: 'HTML' })
-            }
-            await this.delay(2000)
-
-            // Архивные Точки
-            for (const archivePoint of points) {
-              const name = archivePoint.point
-              if (name === 'Точка 88' && !ADMIN.includes(userId)) {
-                continue
-              }
-              const rating = archivePoint.rating
-              const comment = archivePoint.comment
-              const coordinates = archivePoint.coordinates
-              const first = coordinates?.split(',')[0].trim()
-              const second = coordinates?.split(',')[1].trim()
-              const photo = archivePoint?.photo
-              const install = archivePoint.install
-              const installed = archivePoint.installed
-              const id = ADMIN.includes(userId) ? `                  id: ${archivePoint.id}` : ''
-              const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating, 'балл')}.`
-              const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
-              const date = new Date(archivePoint.takeTimestamp)
-              const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}`
-              const historyTakers = archivePoint.takers?.join(', ')
-              const text = !historyTakers
-                ? `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
-                : `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${historyTakers}\n--------------------------------------`
-              // await this.bot.sendLocation(chatId, first, second)
-              if (photo) {
-                await this.bot.sendPhoto(chatId, photo, {
-                  caption: text,
-                  parse_mode: 'HTML',
-                  disable_notification: true,
-                  disable_web_page_preview: true
-                })
-              }
-            }
-          } catch (e) {
-            console.log('Faled Archive', e)
-          }
-        }
-
         if (msg.text === '/rules') {
           const chatId = msg.from.id
           await this.defaultData(chatId)
-          await this.bot.sendMessage(chatId, rules1, {
-            parse_mode: 'HTML',
-            disable_notification: true,
-            disable_web_page_preview: true
-          })
-          await this.bot.sendMessage(chatId, rules2, {
-            parse_mode: 'HTML',
-            disable_notification: true,
-            disable_web_page_preview: true
-          })
+          for (const item of rules) {
+            await this.bot.sendMessage(chatId, item, {
+              parse_mode: 'HTML',
+              disable_notification: true,
+              disable_web_page_preview: true
+            })
+          }
         }
 
         // ADMIN
@@ -539,11 +470,13 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, 'Готово')
         }
 
-        if (/правка/i.test(msg.text) && ADMIN.includes(userId)) {
+        if (/тест/i.test(msg.text) && ADMIN.includes(userId)) {
           // выполнить какое нибудь действие админом
           const coord = msg.text.split('|')[1].trim()
           console.log('coord', coord)
-          this.checkCoordinatesArea(coord)
+          const check = this.checkCoordinatesArea(coord)
+          const textMsg = check ? 'Координаты в зоне этапа' : 'Координаты НЕ В ЗОНЕ ЭТАПА!!!'
+          await this.bot.sendMessage(chatId, textMsg)
         }
 
         if (/обновить рейтинг этапа|игры/i.test(msg.text) && ADMIN.includes(userId)) {
@@ -616,7 +549,7 @@ export default class BotLogic {
               }
             }
           )
-          await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Стартует ${eventNumber} этап игры! Всем удачи! Этап будет завершен 1 апреля в 00:00❗❗❗`)
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Стартует ${eventNumber} этап игры! Всем удачи! Этап будет завершен 27 апреля в 23:59❗❗❗`)
           eventStarting = true
           await this.setEventStarting(eventStarting)
           return
@@ -629,6 +562,27 @@ export default class BotLogic {
           await this.bot.sendMessage(CHANEL_LITEOFFROAD, `❗❗❗Внимание! Окончен ${eventNumber} этап игры!❗❗❗`)
           eventStarting = false
           await this.setEventStarting(eventStarting)
+          return
+        }
+
+        // ADMIN обнулить результаты этапа
+        if (/обнулить результаты этапа/i.test(msg.text) && ADMIN.includes(userId)) { // обнулить результаты этапа Санкт-Петербург
+          const cityEvent = msg.text.split(' ')[3].trim()
+          await userCollection.updateMany(
+            { city: cityEvent },
+            {
+              $set: {
+                event: {
+                  eventInstallPoints: 0,
+                  eventTakePoints: 0,
+                  rating: 0,
+                  eventPosition: 0,
+                  eventPositionTime: new Date().getTime()
+                }
+              }
+            }
+          )
+          await this.bot.sendMessage(chatId, `❗❗❗Результаты этапа обнулены❗❗❗`)
           return
         }
 
@@ -720,29 +674,31 @@ export default class BotLogic {
     return null
   }
 
-  checkCoordinatesArea (input) {
-    const polygonCoordinates = [
-      [29.948576019403, 60.2476041405961],
-      [29.9401646119323, 60.2351644124971],
-      [29.9968128663268, 60.2187128636216],
-      [30.0136356812682, 60.2419812869151],
-      [29.9724369507995, 60.2664251544495],
-      [29.948576019403, 60.2476041405961]
-    ]
-    const first = input?.split(',')[0]?.trim()
-    const second = input?.split(',')[1]?.trim()
-    // Создаем объект многоугольника с использованием Turf.js
-    const polygon = turf.polygon([polygonCoordinates])
-    const userPoint = turf.point([second, first])
-    // Проверка, лежит ли точка внутри многоугольника
-    const isInside = turf.booleanPointInPolygon(userPoint, polygon)
+checkCoordinatesArea(input) {
+  if (!input) return false
 
-    if (isInside) {
-      console.log('Точка находится в зоне игры!')
-    } else {
-      console.log('Точка не в зоне игры!')
+  const [latRaw, lonRaw] = input.split(',').map(val => val.trim())
+  const latitude = parseFloat(latRaw)
+  const longitude = parseFloat(lonRaw)
+
+  if (isNaN(latitude) || isNaN(longitude)) {
+    console.log('Некорректные координаты')
+    return false
+  }
+
+  const userPoint = turf.point([longitude, latitude])
+
+  // Проверяем все полигоны из stage1
+  for (const zone of gameZones.stage1) {
+    const polygon = turf.polygon([zone])
+    if (turf.booleanPointInPolygon(userPoint, polygon)) {
+      return true
     }
   }
+
+  console.log('Точка не в зоне игры!')
+  return false
+}
 
   async registration (msg) {
     try {
@@ -816,7 +772,6 @@ export default class BotLogic {
       }
       switch (msg.data) {
         case 'tookPoints': { // забрал
-          console.log('Забрал usersMap[chatId].textForChanel', usersMap[chatId].textForChanel)
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await collection.updateOne({ point: usersMap[chatId].point }, {
             $set: {
@@ -833,9 +788,8 @@ export default class BotLogic {
             }
           })
           await this.delay(500)
-          // await this.bot.sendMessage(chatId, 'Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))', { disable_notification: true })
           console.log('Точку забрали')
-          usersMap[chatId].textForChatId += '\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 3х дней, а лучше сразу))❗'
+          usersMap[chatId].textForChatId += '\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 24 часов, а лучше сразу))❗'
           usersMap[chatId].textForChanel += '\n❗Точку забрали❗'
 
           await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
@@ -851,7 +805,7 @@ export default class BotLogic {
             disable_web_page_preview: true
           })
 
-          const now = Date.now() * 1000
+          const now = Date.now()
           const newPoint = { point: usersMap[chatId].point, timestamp: now }
 
           // Обновляем запись пользователя в базе данных, добавляя точку в массив noInstallPoints
@@ -859,6 +813,12 @@ export default class BotLogic {
             { id: msg.from.id },
             { $push: { noInstallPoints: newPoint } }
           )
+
+          if (pointTimeouts[usersMap[chatId].point]) {
+            clearTimeout(pointTimeouts[usersMap[chatId].point])
+            delete pointTimeouts[usersMap[chatId].point]
+            console.log(`Таймер удалён — ${usersMap[chatId].point} уже взята`)
+          }
 
           await this.defaultData(chatId)
           break
@@ -871,11 +831,25 @@ export default class BotLogic {
           const takers = isPoint.takers
           takers.push(user)
           await collection.updateOne({ point: usersMap[chatId].point }, {
-            $inc: { rating: 1 },
             $set: { takers: takers }
           })
+          pointTimeouts[isPoint.point] = setTimeout(async () => {
+            try {
+              await collection.updateOne(
+                { point: isPoint.point },
+                {
+                  $inc: { rating: 1 }
+                }
+              )
+              console.log(`Обновление точки ${isPoint.point} выполнено через 30 минут`)
+              delete pointTimeouts[isPoint.point]
+            } catch (err) {
+              console.error('Ошибка при обновлении:', err)
+            }
+          }, 30 * 60 * 1000)
+
           usersMap[chatId].textForChatId += '\n❗Вы оставили точку на месте❗'
-          usersMap[chatId].textForChanel += '\n❗❗❗Точку оставили на месте, рейтинг точки повышен на 1❗❗❗'
+          usersMap[chatId].textForChanel += '\n❗❗❗Точку оставили на месте, рейтинг точки будет повышен на 1 балл через 30 минут❗❗❗'
 
           await this.bot.deleteMessage(msg.message.chat.id, msg.message.message_id)
           await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
@@ -891,9 +865,7 @@ export default class BotLogic {
             disable_web_page_preview: true
           })
 
-          // await this.bot.sendMessage(chatId, 'Вы оставили точку на месте', { disable_notification: true })
           console.log('Точку оставили на месте')
-          // await this.bot.sendMessage(CHANEL_LITEOFFROAD, 'Точку оставили на месте, рейтинг точки повышен на 1', { disable_notification: true })
           await this.defaultData(chatId)
           break
         }
@@ -971,27 +943,28 @@ export default class BotLogic {
         }
       }
 
-      // каждую точку можно брать только раз в сутки
+      // каждую точку можно брать только раз в определенное время
       const now = Date.now()
       await userCollection.updateOne(
         { id: msg.from.id },
         {
-          $pull: { takenPoints: { timestamp: { $lt: now - 24 * 60 * 60 * 1000 } } }  // Удаляем записи старше 24 часов
+          $pull: { takenPoints: { timestamp: { $lt: now - 6 * 60 * 60 * 1000 } } }  // Удаляем записи старше 6 часов
         }
       )
       const user = await userCollection.findOne({ id: msg.from.id })
       const takenPoints = user ? user.takenPoints : []
       usersMap[chatId].takenPoints = takenPoints
       const pointEntry = takenPoints.find(p => p.point === pointText)
-      if (pointEntry && (now - pointEntry.timestamp < 24 * 60 * 60 * 1000)) {
-        const msLeft = 24 * 60 * 60 * 1000 - (now - pointEntry.timestamp)
+      if (pointEntry && (now - pointEntry.timestamp < 6 * 60 * 60 * 1000)) {
+        const msLeft = DELAY_HOURS - (now - pointEntry.timestamp)
 
         const hours = Math.floor(msLeft / (1000 * 60 * 60))
         const minutes = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60))
 
         const timeLeft = `${hours} ч ${minutes} мин`
+        const h = DELAY_HOURS / (60 * 60 * 1000)
 
-        await this.bot.sendMessage(chatId, `❗Вы уже брали эту точку в течение 24 часов. Вы сможете взять её снова через ${timeLeft}.❗`)
+        await this.bot.sendMessage(chatId, `❗Вы уже брали эту точку в течение ${h} часов. Вы сможете взять её снова через ${timeLeft}.❗`)
         return
       }
 
@@ -1000,12 +973,8 @@ export default class BotLogic {
     }
   }
 
-  async checkInstallPoints() {
+  async checkInstallPoints () {
     const now = Date.now()
-    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
-    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
-    // const TWENTY_FOUR_HOURS_MS = 5 * 60 * 1000
-
     const users = await userCollection.find({
       noInstallPoints: { $exists: true, $not: { $size: 0 } }
     }).toArray()
@@ -1014,15 +983,16 @@ export default class BotLogic {
       // Фильтруем просроченные точки
       const overduePoints = user.noInstallPoints.filter(p => {
         const ts = typeof p.timestamp === 'number' ? p.timestamp : Number(p.timestamp)
-        return now - ts > THREE_DAYS_MS
+        return now - ts > DAYS_FOR_INSTALL
       })
 
       if (overduePoints.length > 0) {
         // Проходим по каждой просроченной точке и проверяем, прошло ли 24 часа с последнего списания
         let pointsToDeduct = []
+        const hours = 24 * 60 * 60 * 1000
         for (const point of overduePoints) {
           const lastDeduction = point.lastDeductionTimestamp || 0
-          if (now - lastDeduction >= TWENTY_FOUR_HOURS_MS) {
+          if (now - lastDeduction >= hours ) {
             pointsToDeduct.push(point)
           }
         }
@@ -1041,7 +1011,7 @@ export default class BotLogic {
 
             text += `<b>${point.point}</b> была взята <b>${days} дн ${hours} ч</b> назад.\n`
           }
-          text += `За просрочку списано ${pointsToDeduct.length} б.\n`
+          text += `За просрочку списано ${pointsToDeduct.length} ${this.declOfNum(pointsToDeduct.length, 'балл')}\n`
           await this.bot.sendMessage(139280481, text, { parse_mode: 'HTML' })
 
           // Обновляем timestamp последнего списания для каждой точки
@@ -1049,33 +1019,37 @@ export default class BotLogic {
             { _id: user._id },
             {
               $set: {
-                "noInstallPoints.$[elem].lastDeductionTimestamp": now
+                'noInstallPoints.$[elem].lastDeductionTimestamp': now
               },
             },
             {
               arrayFilters: [
-                { "elem": { $in: pointsToDeduct } }
+                { 'elem': { $in: pointsToDeduct } }
               ]
             }
           )
           // await userCollection.updateOne({ id: user.id }, {
           //   $inc: {
-          //     rating: -1
+          //     rating: -pointsToDeduct.length
           //   }
           // })
-          // if (eventStarting) {
-          //   await userCollection.updateOne({ id: user.id }, {
-          //     $inc: {
-          //       'event.rating': -1
-          //     }
-          //   })
+          // if (eventStarting && user.event?.rating > 0) {
+          //   const currentEventRating = user.event.rating
+          //   const deduction = Math.min(pointsToDeduct.length, currentEventRating)
+          //
+          //   if (deduction > 0) {
+          //     await userCollection.updateOne({ id: user.id }, {
+          //       $inc: {
+          //         'event.rating': -deduction
+          //       }
+          //     })
+          //   }
           // }
+
         }
       }
     }
   }
-
-
 
   async ratingCursor () {
     const result = []
@@ -1224,8 +1198,7 @@ export default class BotLogic {
   async onFile (msg) {
     try {
       const chatId = msg.from.id
-      usersMap[chatId].photo = msg.photo[0].file_id
-      console.log(this.getTime())
+      usersMap[chatId].photo = msg.photo[msg.photo.length - 1].file_id
       console.log('Отправлено фото: ', usersMap[chatId].photo)
       const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name
       const pointField = await collection.findOne({ point: usersMap[chatId].point })
@@ -1239,13 +1212,19 @@ export default class BotLogic {
         return
       }
       const profile = await userCollection.findOne({ id: msg.from.id })
-      const textForChatId = usersMap[chatId].install
-        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе добавлен рейтинг +2\nОбщий рейтинг ${profile.rating + 2}\nСообщение продублировано в основной канал @liteoffroad`
-        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nТебе добавлен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad`
+      let isZone = ''
+      if (usersMap[chatId].install && eventStarting && !this.checkCoordinatesArea(usersMap[chatId].coordinates)) {
+          usersMap[chatId].coordinatesInArea = false
+          isZone += 'Точка была установлена вне зоны этапа, баллы этапа не начисляются.'
+        }
 
-      const textForChanel = usersMap[chatId].install
-        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nЕму добавлен рейтинг +2\n<a href="https://point-map.ru/?id=${pointField.id}&type=install">📍Карта с точками📍</a>`
-        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nКооринаты: <code>${pointField.coordinates}</code>\nЕму добавлен рейтинг +${usersMap[chatId].rating}\n<a href="https://point-map.ru/?id=${pointField.id}&type=take">📍Карта с точками📍</a>`
+      let textForChatId = usersMap[chatId].install
+        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе начислен рейтинг +2\nОбщий рейтинг ${profile.rating + 2}\nСообщение продублировано в основной канал @liteoffroad\n${isZone}`
+        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nТебе начислен рейтинг +${usersMap[chatId].rating}\nОбщий рейтинг ${profile.rating + usersMap[chatId].rating}\nСообщение продублировано в основной канал @liteoffroad\n`
+
+      let textForChanel = usersMap[chatId].install
+        ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nЗа установку начислен рейтинг +2\n<a href="https://point-map.ru/?id=${pointField.id}&type=install">📍Карта с точками📍</a>\n${isZone}`
+        : `${usersMap[chatId].point} Взята 🔥\n\n${usersMap[chatId].comment}\n\nТочку взял: ${username}\nКооринаты: <code>${pointField.coordinates}</code>\nЗа взятие начислен рейтинг +${usersMap[chatId].rating}\n<a href="https://point-map.ru/?id=${pointField.id}&type=take">📍Карта с точками📍</a>\n`
 
       usersMap[chatId].textForChatId = textForChatId
       usersMap[chatId].textForChanel = textForChanel
@@ -1308,7 +1287,7 @@ export default class BotLogic {
               takePoints: !usersMap[chatId].install ? 1 : 0
             }
           })
-          if (eventStarting) {
+          if (eventStarting && usersMap[chatId].coordinatesInArea) {
             await userCollection.updateOne({ id: msg.from.id }, {
               $inc: {
                 'event.rating': usersMap[chatId].install ? 2 : usersMap[chatId].rating,
@@ -1354,7 +1333,7 @@ export default class BotLogic {
               ]
             }
           })
-          const now = Date.now() * 1000
+          const now = Date.now()
           await userCollection.updateOne(
             { id: msg.from.id },
             { $push: { takenPoints: { point: usersMap[chatId].point, timestamp: now } } }
@@ -1433,9 +1412,9 @@ export default class BotLogic {
                 $inc: { rating: 1 }
               }
             )
-            message += `Точку устанавливал ${point.installed}, ему добавлен 1 балл\n\n`
+            message += `${point.installed} был добавлен 1 балл\n\n`
           }
-          if (eventStarting) {
+          if (eventStarting && this.checkCoordinatesArea(point.coordinates)) {
             await userCollection.updateOne({ id: point.installedId },
               {
                 $inc: { 'event.rating': 1 }
@@ -1507,7 +1486,8 @@ export default class BotLogic {
       textForChanel: '',
       textForChatId: '',
       takenPoints: profile.takenPoints || [],
-      noInstallPoints: profile.noInstallPoints || []
+      noInstallPoints: profile.noInstallPoints || [],
+      coordinatesInArea: true
     }
   }
 
