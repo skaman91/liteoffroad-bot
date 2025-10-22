@@ -79,7 +79,7 @@ export default class BotLogic {
     try {
       if (msg.text) {
         console.log(this.getTime())
-        console.log('Сообщение:', msg.text, 'userName:', msg?.from.username ? `@${msg?.from.username}` : '', 'first_name:', msg?.from.first_name)
+        console.log('Сообщение:', msg.text, 'userName:', msg?.from.username ? `@${msg?.from.username}` : '', 'first_name:', msg?.from.first_name, 'id:' + msg?.from.id)
         const profile = await userCollection.findOne({ id: msg.from.id })
         const chatId = msg.chat?.id
         const user = msg?.from.first_name
@@ -157,7 +157,7 @@ export default class BotLogic {
             const first = coordinates?.split(',')[0]?.trim()
             const second = coordinates?.split(',')[1]?.trim()
             const photo = point?.photo
-            const rang = point.rang === 'Хард' ? '🔴Хард' : '🟢Лайт'
+            const rang = this.getRang(point.rang)
             const install = point.install
             const installed = point.installed
             const osmAndLink = `<a href="https://osmand.net/map?pin=${first},${second}#13/${first}/${second}">Открыть в OsmAnd</a>`
@@ -479,6 +479,68 @@ export default class BotLogic {
           await this.bot.sendMessage(chatId, textMsg)
         }
 
+        // показть архивные точки админу
+        if (/^показать архив$/i.test(msg.text) && ADMIN.includes(userId)) {
+          try {
+            console.log('!!!')
+            const chatId = msg.from.id
+            await this.defaultData(chatId)
+            const cursor = await historyCollection
+              .find({ city: usersMap[chatId].city })
+              .sort({ _id: -1 })
+              .limit(20)
+            let i = 0
+            const points = []
+
+            for (let data = await cursor.next(); data !== null; data = await cursor.next()) {
+              i++
+              points.push(data)
+            }
+            if (points.length) {
+              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nВот список последних 20 архивных точек:</b>`, { parse_mode: 'HTML' })
+            } else {
+              await this.bot.sendMessage(chatId, `<b>Привет ${user}!\nНе нашлось архивных точек:</b>`, { parse_mode: 'HTML' })
+            }
+            await this.delay(2000)
+
+            // Архивные Точки
+            for (const archivePoint of points) {
+              const name = archivePoint.point
+              if (name === 'Точка 88' && !ADMIN.includes(userId)) {
+                continue
+              }
+              const rating = archivePoint.rating
+              const comment = archivePoint.comment
+              const coordinates = archivePoint.coordinates
+              const first = coordinates?.split(',')[0].trim()
+              const second = coordinates?.split(',')[1].trim()
+              const photo = archivePoint?.photo
+              const install = archivePoint.install
+              const installed = archivePoint.installed
+              const id = ADMIN.includes(userId) ? `                  id: ${archivePoint.id}` : ''
+              const ratingInfo = `За взятие этой точки было начислено ${rating} ${this.declOfNum(rating, 'балл')}.`
+              const installedComment = install ? `Установил ${installed}` : `Точку взял ${installed}`
+              const date = new Date(archivePoint.takeTimestamp)
+              const dateComment = install ? `Точка была установлена ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}` : `Точка была взята ${date.getFullYear()} - ${date.getMonth() + 1} - ${date.getDate()}`
+              const historyTakers = archivePoint.takers?.join(', ')
+              const text = !historyTakers
+                ? `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\n--------------------------------------`
+                : `<b>${name}</b>${id}\n<code>${coordinates}</code>\n${dateComment}\n${comment}\n<a href="https://yandex.ru/maps/?ll=${second}%2C${first}&mode=search&sll=${first}%${second}&text=${first}%2C${second}&z=15">Посмотреть на карте</a>\n${ratingInfo}\n${installedComment}\nТочку брали, но оставили на месте: ${historyTakers}\n--------------------------------------`
+              // await this.bot.sendLocation(chatId, first, second)
+              if (photo) {
+                await this.bot.sendPhoto(chatId, photo, {
+                  caption: text,
+                  parse_mode: 'HTML',
+                  disable_notification: true,
+                  disable_web_page_preview: true
+                })
+              }
+            }
+          } catch (e) {
+            console.log('Faled Archive', e)
+          }
+        }
+
         if (/обновить рейтинг этапа|игры/i.test(msg.text) && ADMIN.includes(userId)) {
           await this.refreshRating()
         }
@@ -674,31 +736,48 @@ export default class BotLogic {
     return null
   }
 
-checkCoordinatesArea(input) {
-  if (!input) return false
+  checkCoordinatesArea (input) {
+    if (!input) return false
 
-  const [latRaw, lonRaw] = input.split(',').map(val => val.trim())
-  const latitude = parseFloat(latRaw)
-  const longitude = parseFloat(lonRaw)
+    const [latRaw, lonRaw] = input.split(',').map(val => val.trim())
+    const latitude = parseFloat(latRaw)
+    const longitude = parseFloat(lonRaw)
 
-  if (isNaN(latitude) || isNaN(longitude)) {
-    console.log('Некорректные координаты')
+    if (isNaN(latitude) || isNaN(longitude)) {
+      console.log('Некорректные координаты')
+      return false
+    }
+
+    const userPoint = turf.point([longitude, latitude])
+
+    // Проверяем все полигоны из stage1
+    for (const zone of gameZones.stage1) {
+      const polygon = turf.polygon([zone])
+      if (turf.booleanPointInPolygon(userPoint, polygon)) {
+        return true
+      }
+    }
+
+    console.log('Точка не в зоне игры!')
     return false
   }
 
-  const userPoint = turf.point([longitude, latitude])
-
-  // Проверяем все полигоны из stage1
-  for (const zone of gameZones.stage1) {
-    const polygon = turf.polygon([zone])
-    if (turf.booleanPointInPolygon(userPoint, polygon)) {
-      return true
+  getRang(rang) {
+    switch (rang) {
+      case 'Лайт': {
+        return '🟢Лайт'
+      }
+      case 'Хард': {
+        return '🔴Хард'
+      }
+      case 'Медиум': {
+        return '🔵Ни то ни се'
+      }
+      case 'Atv': {
+        return '🟠Atv'
+      }
     }
   }
-
-  console.log('Точка не в зоне игры!')
-  return false
-}
 
   async registration (msg) {
     try {
@@ -789,7 +868,8 @@ checkCoordinatesArea(input) {
           })
           await this.delay(500)
           console.log('Точку забрали')
-          usersMap[chatId].textForChatId += '\n❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение 24 часов, а лучше сразу))❗'
+          usersMap[chatId].textForChatId += `
+❗Вы забрали точку, установите ее на новое место, не ближе 5км от места взятия в течение ${this.msToDaysAndHours(DAYS_FOR_INSTALL)}, а лучше сразу))❗`
           usersMap[chatId].textForChanel += '\n❗Точку забрали❗'
 
           await this.bot.sendPhoto(chatId, usersMap[chatId].photo, {
@@ -900,7 +980,7 @@ checkCoordinatesArea(input) {
   async takePoint (msg, pointText) {
     const chatId = msg.from.id
     if (usersMap[chatId].step === 1 && !usersMap[chatId].point && usersMap[chatId].install) {
-      const pointField = /точка [0-9]+/i.test(pointText)
+      const pointField = /(точка [0-9]+|BONUS)/i.test(pointText)
       if (pointField && !usersMap[chatId].point) {
         usersMap[chatId].point = pointText
         const pointInBase = await collection.findOne({ point: pointText })
@@ -940,6 +1020,7 @@ checkCoordinatesArea(input) {
         }
         if (usersMap[chatId].noInstallPoints.length === 3) {
           await this.bot.sendMessage(chatId, `❗У вас 3 точки на руках, вы не можете брать точки, пока не расставите имеющиеся❗`)
+          return
         }
       }
 
@@ -992,7 +1073,7 @@ checkCoordinatesArea(input) {
         const hours = 24 * 60 * 60 * 1000
         for (const point of overduePoints) {
           const lastDeduction = point.lastDeductionTimestamp || 0
-          if (now - lastDeduction >= hours ) {
+          if (now - lastDeduction >= hours) {
             pointsToDeduct.push(point)
           }
         }
@@ -1012,7 +1093,7 @@ checkCoordinatesArea(input) {
             text += `<b>${point.point}</b> была взята <b>${days} дн ${hours} ч</b> назад.\n`
           }
           text += `За просрочку списано ${pointsToDeduct.length} ${this.declOfNum(pointsToDeduct.length, 'балл')}\n`
-          await this.bot.sendMessage(139280481, text, { parse_mode: 'HTML' })
+          await this.bot.sendMessage(CHANEL_LITEOFFROAD, text, { parse_mode: 'HTML' })
 
           // Обновляем timestamp последнего списания для каждой точки
           await userCollection.updateOne(
@@ -1028,23 +1109,23 @@ checkCoordinatesArea(input) {
               ]
             }
           )
-          // await userCollection.updateOne({ id: user.id }, {
-          //   $inc: {
-          //     rating: -pointsToDeduct.length
-          //   }
-          // })
-          // if (eventStarting && user.event?.rating > 0) {
-          //   const currentEventRating = user.event.rating
-          //   const deduction = Math.min(pointsToDeduct.length, currentEventRating)
-          //
-          //   if (deduction > 0) {
-          //     await userCollection.updateOne({ id: user.id }, {
-          //       $inc: {
-          //         'event.rating': -deduction
-          //       }
-          //     })
-          //   }
-          // }
+          await userCollection.updateOne({ id: user.id }, {
+            $inc: {
+              rating: -pointsToDeduct.length
+            }
+          })
+          if (eventStarting && user.event?.rating > 0) {
+            const currentEventRating = user.event.rating
+            const deduction = Math.min(pointsToDeduct.length, currentEventRating)
+
+            if (deduction > 0) {
+              await userCollection.updateOne({ id: user.id }, {
+                $inc: {
+                  'event.rating': -deduction
+                }
+              })
+            }
+          }
 
         }
       }
@@ -1214,9 +1295,9 @@ checkCoordinatesArea(input) {
       const profile = await userCollection.findOne({ id: msg.from.id })
       let isZone = ''
       if (usersMap[chatId].install && eventStarting && !this.checkCoordinatesArea(usersMap[chatId].coordinates)) {
-          usersMap[chatId].coordinatesInArea = false
-          isZone += 'Точка была установлена вне зоны этапа, баллы этапа не начисляются.'
-        }
+        usersMap[chatId].coordinatesInArea = false
+        isZone += 'Точка была установлена вне зоны этапа, баллы этапа не начисляются.'
+      }
 
       let textForChatId = usersMap[chatId].install
         ? `${usersMap[chatId].point} Установлена!🔥\nКоординаты: <code>${usersMap[chatId].coordinates}</code>\nУстановил: ${username}\n${usersMap[chatId].comment}\nТебе начислен рейтинг +2\nОбщий рейтинг ${profile.rating + 2}\nСообщение продублировано в основной канал @liteoffroad\n${isZone}`
@@ -1423,7 +1504,8 @@ checkCoordinatesArea(input) {
           }
         }
       }
-      await this.bot.sendMessage(CHANEL_LITEOFFROAD, message)
+      console.log('Заглушенное сообщение', message)
+      // await this.bot.sendMessage(CHANEL_LITEOFFROAD, message)
       await this.refreshRating()
     } catch (e) {
       console.error(`[${new Date().toISOString()}] Ошибка при обновлении рейтингов:`, e.message)
@@ -1455,7 +1537,6 @@ checkCoordinatesArea(input) {
       'мин': ['минуту', 'минуты', 'минут'],
       'дней': ['день', 'дня', 'дней']
     }
-
     const map = labels[label]
 
     if (!map) {
@@ -1465,6 +1546,22 @@ checkCoordinatesArea(input) {
     const cases = [2, 0, 1, 1, 1, 2]
 
     return map[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]]
+  }
+
+  msToDaysAndHours (ms) {
+    const totalHours = ms / (1000 * 60 * 60)
+    const days = Math.floor(totalHours / 24)
+    const hours = Math.floor(totalHours % 24)
+    if (days === 1 && hours === 0) {
+      return "24ч"
+    }
+    if (!days && hours) {
+      return `${hours}ч`
+    }
+    if (days && hours) {
+      return `${days}д ${hours}ч`
+    }
+    return `${days}д`
   }
 
   async defaultData (chatId) {
